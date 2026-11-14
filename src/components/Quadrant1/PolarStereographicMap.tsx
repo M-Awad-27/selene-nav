@@ -16,26 +16,6 @@ const MAJOR_SOUTH_POLE_CRATERS = [
   { name: 'Peak Near Shackleton', lat: -89.68, lon: 129.0, radiusKm: 13.0, hasPsr: false, hasPeak: false },
 ];
 
-// Deterministic Pseudo-Random Generator for Secondary Craters
-function createSecondaryCraters() {
-  const craters: { lat: number; lon: number; radiusKm: number }[] = [];
-  let seed = 42;
-  const rnd = () => {
-    seed = (seed * 9301 + 49297) % 233280;
-    return seed / 233280;
-  };
-
-  for (let i = 0; i < 75; i++) {
-    const lat = -80.0 - rnd() * 9.5;
-    const lon = rnd() * 360.0 - 180.0;
-    const radiusKm = 4.0 + rnd() * 12.0;
-    craters.push({ lat, lon, radiusKm });
-  }
-  return craters;
-}
-
-const SECONDARY_CRATERS = createSecondaryCraters();
-
 export const PolarStereographicMap: React.FC = () => {
   const sitesRegistry = useMissionStore((s) => s.sitesRegistry);
   const selectedSiteId = useMissionStore((s) => s.selectedSiteId);
@@ -51,6 +31,7 @@ export const PolarStereographicMap: React.FC = () => {
   const [inputLon, setInputLon] = useState('137.00');
   const [inputElev, setInputElev] = useState('1.25');
 
+  const lunarImageRef = useRef<HTMLImageElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const offscreenCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -100,227 +81,181 @@ export const PolarStereographicMap: React.FC = () => {
   const formatSignedDeg = (val: number, decimals: number = 2) =>
     `${val >= 0 ? '+' : ''}${val.toFixed(decimals)}°`;
 
-  // 1. Load Real NASA LRO/LOLA South Pole Satellite Image onto the globe canvas
-  useEffect(() => {
+  // Draw Base Lunar Globe (using /lunar-south-pole.jpg with Procedural Fallback)
+  const drawGlobe = (sourceImg?: HTMLImageElement | null) => {
     const size = VIEWBOX_SIZE;
     const plateRadius = CENTER - 26;
+    const offscreen = document.createElement('canvas');
+    offscreen.width = size;
+    offscreen.height = size;
+    const octx = offscreen.getContext('2d');
+    if (!octx) return;
 
-    const buildOffscreen = (sourceImg?: HTMLImageElement) => {
-      const offscreen = document.createElement('canvas');
-      offscreen.width = size;
-      offscreen.height = size;
-      const octx = offscreen.getContext('2d');
-      if (!octx) return;
+    // Void background outside the circular globe
+    octx.fillStyle = '#090A0D';
+    octx.fillRect(0, 0, size, size);
 
-      // Void background
-      octx.fillStyle = '#090A0D';
+    // Clip to circular stereographic globe
+    octx.save();
+    octx.beginPath();
+    octx.arc(CENTER, CENTER, plateRadius, 0, Math.PI * 2);
+    octx.clip();
+
+    if (sourceImg && sourceImg.complete && sourceImg.naturalWidth > 0) {
+      // 1. Draw High-Resolution Lunar South Pole Hillshade Texture
+      octx.drawImage(
+        sourceImg,
+        CENTER - plateRadius,
+        CENTER - plateRadius,
+        plateRadius * 2,
+        plateRadius * 2
+      );
+
+      // 2. Subtle radial vignette around outer 80°S limb edge for seamless contrast
+      const vignette = octx.createRadialGradient(
+        CENTER,
+        CENTER,
+        plateRadius * 0.70,
+        CENTER,
+        CENTER,
+        plateRadius
+      );
+      vignette.addColorStop(0.0, 'rgba(0, 0, 0, 0)');
+      vignette.addColorStop(0.75, 'rgba(9, 10, 13, 0.28)');
+      vignette.addColorStop(1.0, 'rgba(9, 10, 13, 0.68)');
+      octx.fillStyle = vignette;
       octx.fillRect(0, 0, size, size);
 
-      // Clip to circular disc
-      octx.save();
-      octx.beginPath();
-      octx.arc(CENTER, CENTER, plateRadius, 0, Math.PI * 2);
-      octx.clip();
+      // 3. Render Cryo-Indigo Permanently Shadowed Region (PSR) dashed contours
+      MAJOR_SOUTH_POLE_CRATERS.filter((c) => c.hasPsr).forEach((c) => {
+        const { svgX, svgY } = projectToSvg(c.lat, c.lon);
+        const rPx = Math.max(12, (c.radiusKm / RHO_MAX_KM) * (CENTER - 28));
 
-      if (sourceImg) {
-        // Draw real NASA satellite image, scaled to fill the disc
-        const imgSize = Math.max(sourceImg.width, sourceImg.height);
-        const drawSize = plateRadius * 2;
-        octx.drawImage(
-          sourceImg,
-          (sourceImg.width - imgSize) / 2, (sourceImg.height - imgSize) / 2,
-          imgSize, imgSize,
-          CENTER - plateRadius, CENTER - plateRadius,
-          drawSize, drawSize
-        );
-        // Tint to dark aerospace palette
-        octx.fillStyle = 'rgba(9, 10, 13, 0.25)';
-        octx.fillRect(0, 0, size, size);
-        // Subtle limb darkening
-        const limbGrad = octx.createRadialGradient(CENTER, CENTER, plateRadius * 0.55, CENTER, CENTER, plateRadius);
-        limbGrad.addColorStop(0, 'rgba(0,0,0,0)');
-        limbGrad.addColorStop(1, 'rgba(9, 10, 13, 0.55)');
-        octx.fillStyle = limbGrad;
-        octx.fillRect(0, 0, size, size);
-      } else {
-        // Fallback: Smooth shaded-relief DEM (NOT noisy pixel grain)
-        // Base: smooth radial gradient from center (#2E3544) to edge (#12151B)
-        const baseGrad = octx.createRadialGradient(CENTER, CENTER, 0, CENTER, CENTER, plateRadius);
-        baseGrad.addColorStop(0, '#363D4E');
-        baseGrad.addColorStop(0.3, '#2E3544');
-        baseGrad.addColorStop(0.7, '#1F242E');
-        baseGrad.addColorStop(1.0, '#12151B');
-        octx.fillStyle = baseGrad;
-        octx.fillRect(0, 0, size, size);
+        // Cryo-Indigo pool fill
+        octx.fillStyle = 'rgba(22, 65, 118, 0.65)';
+        octx.beginPath();
+        octx.arc(svgX, svgY, rPx * 0.60, 0, Math.PI * 2);
+        octx.fill();
 
-        // Directional lighting from 135° (top-left sunlit)
-        const sunLightGrad = octx.createLinearGradient(
-          CENTER - plateRadius * 0.7, CENTER - plateRadius * 0.7,
-          CENTER + plateRadius * 0.7, CENTER + plateRadius * 0.7
-        );
-        sunLightGrad.addColorStop(0, 'rgba(180, 195, 215, 0.18)');
-        sunLightGrad.addColorStop(0.45, 'rgba(0,0,0,0)');
-        sunLightGrad.addColorStop(1, 'rgba(7, 9, 13, 0.35)');
-        octx.fillStyle = sunLightGrad;
-        octx.fillRect(0, 0, size, size);
+        // Bright cyan-teal dashed border
+        octx.strokeStyle = '#4CC9B8';
+        octx.lineWidth = 1.4;
+        octx.setLineDash([4, 3]);
+        octx.beginPath();
+        octx.arc(svgX, svgY, rPx * 0.60, 0, Math.PI * 2);
+        octx.stroke();
+        octx.setLineDash([]);
 
-        // Draw 35 distinct craters with realistic 3D directional lighting
-        const craterList = [
-          ...MAJOR_SOUTH_POLE_CRATERS.map(c => {
-            const p = polarStereographicProject(c.lat, c.lon);
-            return { cx: CENTER + p.x * SCALE, cy: CENTER - p.y * SCALE, r: Math.max(14, (c.radiusKm / RHO_MAX_KM) * (CENTER - 28)), psr: c.hasPsr, name: c.name };
-          }),
-          ...SECONDARY_CRATERS.slice(0, 26).map(c => {
-            const p = polarStereographicProject(c.lat, c.lon);
-            return { cx: CENTER + p.x * SCALE, cy: CENTER - p.y * SCALE, r: Math.max(5, (c.radiusKm / RHO_MAX_KM) * (CENTER - 28)), psr: false, name: '' };
-          }),
-        ];
+        // Crisp 'PSR' label
+        if (rPx > 11) {
+          octx.font = 'bold 7.5px "JetBrains Mono", monospace';
+          octx.fillStyle = '#4CC9B8';
+          octx.textAlign = 'center';
+          octx.fillText('PSR', svgX, svgY + 2.5);
+          octx.textAlign = 'start';
+        }
+      });
+    } else {
+      // ── High-Albedo Procedural Fallback (if image is loading or unavailable) ──
+      const baseGrad = octx.createRadialGradient(CENTER, CENTER, 0, CENTER, CENTER, plateRadius);
+      baseGrad.addColorStop(0.0, '#68707E');
+      baseGrad.addColorStop(0.35, '#5C6472');
+      baseGrad.addColorStop(0.65, '#525A68');
+      baseGrad.addColorStop(1.0, '#363C48');
+      octx.fillStyle = baseGrad;
+      octx.fillRect(0, 0, size, size);
 
-        craterList.forEach(cr => {
-          const { cx: ccx, cy: ccy, r: crR } = cr;
-          // Check inside disc
-          const distFromCenter = Math.sqrt((ccx - CENTER) ** 2 + (ccy - CENTER) ** 2);
-          if (distFromCenter + crR > plateRadius + 10) return;
+      const sunAzRad = (135.0 * Math.PI) / 180.0;
+      const sunDirX = Math.cos(sunAzRad);
+      const sunDirY = Math.sin(sunAzRad);
 
-          // Outer ejecta halo
-          const ejectaGrad = octx.createRadialGradient(ccx, ccy, crR * 0.8, ccx, ccy, crR * 1.4);
-          ejectaGrad.addColorStop(0, 'rgba(145, 155, 170, 0.22)');
-          ejectaGrad.addColorStop(1, 'rgba(0,0,0,0)');
-          octx.fillStyle = ejectaGrad;
+      // Craters list
+      const fullCraterList = MAJOR_SOUTH_POLE_CRATERS.map((c) => {
+        const p = polarStereographicProject(c.lat, c.lon);
+        return {
+          cx: CENTER + p.x * SCALE,
+          cy: CENTER - p.y * SCALE,
+          r: Math.max(14, (c.radiusKm / RHO_MAX_KM) * (CENTER - 28)),
+          psr: c.hasPsr,
+        };
+      });
+
+      fullCraterList.forEach((cr) => {
+        const { cx: ccx, cy: ccy, r: crR } = cr;
+        // Sunlit inner wall
+        octx.save();
+        octx.beginPath();
+        octx.arc(ccx, ccy, crR, 0, Math.PI * 2);
+        octx.clip();
+        octx.fillStyle = '#B8C2D0';
+        octx.fill();
+
+        // Shadowed floor
+        octx.fillStyle = '#0B0E14';
+        octx.beginPath();
+        octx.arc(ccx - sunDirX * 0.22 * crR, ccy - sunDirY * 0.22 * crR, crR * 0.92, 0, Math.PI * 2);
+        octx.fill();
+        octx.restore();
+
+        // Rim stroke
+        octx.strokeStyle = 'rgba(230, 236, 245, 0.55)';
+        octx.lineWidth = 1.2;
+        octx.beginPath();
+        octx.arc(ccx, ccy, crR, sunAzRad - Math.PI * 0.5, sunAzRad + Math.PI * 0.5);
+        octx.stroke();
+
+        if (cr.psr) {
+          octx.fillStyle = 'rgba(22, 65, 118, 0.72)';
           octx.beginPath();
-          octx.arc(ccx, ccy, crR * 1.4, 0, Math.PI * 2);
+          octx.arc(ccx, ccy, crR * 0.58, 0, Math.PI * 2);
           octx.fill();
 
-          // Sunlit inner wall (SE — offset toward sun at 135°)
-          octx.save();
+          octx.strokeStyle = '#4CC9B8';
+          octx.lineWidth = 1.4;
+          octx.setLineDash([4, 3]);
           octx.beginPath();
-          octx.arc(ccx, ccy, crR, 0, Math.PI * 2);
-          octx.clip();
-          const sunlitGrad = octx.createRadialGradient(
-            ccx - crR * 0.12, ccy - crR * 0.12, crR * 0.3,
-            ccx - crR * 0.12, ccy - crR * 0.12, crR * 1.0
-          );
-          sunlitGrad.addColorStop(0, 'rgba(138, 148, 166, 0.6)');
-          sunlitGrad.addColorStop(1, 'rgba(0,0,0,0)');
-          octx.fillStyle = sunlitGrad;
-          octx.fillRect(ccx - crR, ccy - crR, crR * 2, crR * 2);
-
-          // Shadowed NW inner wall & floor
-          const shadowGrad = octx.createRadialGradient(
-            ccx + crR * 0.14, ccy + crR * 0.14, crR * 0.1,
-            ccx + crR * 0.14, ccy + crR * 0.14, crR * 0.95
-          );
-          shadowGrad.addColorStop(0, 'rgba(11, 13, 18, 0.85)');
-          shadowGrad.addColorStop(1, 'rgba(0,0,0,0)');
-          octx.fillStyle = shadowGrad;
-          octx.fillRect(ccx - crR, ccy - crR, crR * 2, crR * 2);
-
-          // Crater floor depression
-          const floorGrad = octx.createRadialGradient(ccx, ccy, crR * 0.05, ccx, ccy, crR * 0.7);
-          floorGrad.addColorStop(0, 'rgba(8, 10, 14, 0.7)');
-          floorGrad.addColorStop(1, 'rgba(0,0,0,0)');
-          octx.fillStyle = floorGrad;
-          octx.fillRect(ccx - crR, ccy - crR, crR * 2, crR * 2);
-          octx.restore();
-
-          // Sharp rim edge stroke
-          octx.strokeStyle = 'rgba(200, 210, 225, 0.45)';
-          octx.lineWidth = 1.2;
-          octx.beginPath();
-          octx.arc(ccx, ccy, crR, 0, Math.PI * 2);
+          octx.arc(ccx, ccy, crR * 0.58, 0, Math.PI * 2);
           octx.stroke();
-
-          // PSR fill for permanently shadowed craters
-          if (cr.psr) {
-            octx.fillStyle = 'rgba(20, 52, 95, 0.68)';
-            octx.beginPath();
-            octx.arc(ccx, ccy, crR * 0.6, 0, Math.PI * 2);
-            octx.fill();
-
-            octx.strokeStyle = '#4CC9B8';
-            octx.lineWidth = 1.2;
-            octx.setLineDash([3, 3]);
-            octx.beginPath();
-            octx.arc(ccx, ccy, crR * 0.6, 0, Math.PI * 2);
-            octx.stroke();
-            octx.setLineDash([]);
-
-            // PSR label
-            if (crR > 12) {
-              octx.font = 'bold 7px "JetBrains Mono", monospace';
-              octx.fillStyle = '#4CC9B8';
-              octx.textAlign = 'center';
-              octx.fillText('PSR', ccx, ccy + 3);
-              octx.textAlign = 'start';
-            }
-          }
-        });
-      }
-
-      octx.restore();
-      offscreenCanvasRef.current = offscreen;
-    };
-
-    // Try loading real NASA satellite image first
-    const nasaImg = new Image();
-    nasaImg.crossOrigin = 'anonymous';
-    let loaded = false;
-    nasaImg.onload = () => {
-      loaded = true;
-      buildOffscreen(nasaImg);
-      // Trigger re-render of main canvas
-      const canvas = canvasRef.current;
-      if (canvas && offscreenCanvasRef.current) {
-        const mctx = canvas.getContext('2d');
-        if (mctx) {
-          canvas.width = size;
-          canvas.height = size;
-          mctx.drawImage(offscreenCanvasRef.current, 0, 0);
+          octx.setLineDash([]);
         }
-      }
-    };
-    nasaImg.onerror = () => {
-      if (!loaded) buildOffscreen(); // Use smooth gradient fallback
-    };
-    // Primary: Wikimedia Commons NASA LRO South Pole Mosaic
-    nasaImg.src = 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Lunar_south_pole_mosaic.jpg/1024px-Lunar_south_pole_mosaic.jpg';
-
-    // Timeout fallback: if image hasn't loaded in 3s, use procedural DEM
-    const fallbackTimer = setTimeout(() => {
-      if (!loaded) buildOffscreen();
-    }, 3000);
-
-    return () => clearTimeout(fallbackTimer);
-  }, []);
-
-  // 2. Paint the offscreen basemap onto the visible canvas once it's ready
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const size = VIEWBOX_SIZE;
-    canvas.width = size;
-    canvas.height = size;
-
-    if (offscreenCanvasRef.current) {
-      ctx.drawImage(offscreenCanvasRef.current, 0, 0);
-    } else {
-      // Temporary solid fill until image loads
-      ctx.fillStyle = '#1A1D24';
-      ctx.fillRect(0, 0, size, size);
-      // Draw smooth base disc while waiting
-      const plateRadius = CENTER - 26;
-      const baseGrad = ctx.createRadialGradient(CENTER, CENTER, 0, CENTER, CENTER, plateRadius);
-      baseGrad.addColorStop(0, '#363D4E');
-      baseGrad.addColorStop(0.5, '#252A34');
-      baseGrad.addColorStop(1.0, '#12151B');
-      ctx.beginPath();
-      ctx.arc(CENTER, CENTER, plateRadius, 0, Math.PI * 2);
-      ctx.fillStyle = baseGrad;
-      ctx.fill();
+      });
     }
+
+    octx.restore();
+    offscreenCanvasRef.current = offscreen;
+
+    // Direct paint to visible canvas
+    const canvas = canvasRef.current;
+    if (canvas) {
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(offscreen, 0, 0);
+      }
+    }
+  };
+
+  // Cache and load /lunar-south-pole.jpg for instant, flicker-free rendering
+  useEffect(() => {
+    if (lunarImageRef.current && lunarImageRef.current.complete) {
+      drawGlobe(lunarImageRef.current);
+      return;
+    }
+
+    const img = new Image();
+    img.src = '/lunar-south-pole.jpg';
+    img.onload = () => {
+      lunarImageRef.current = img;
+      drawGlobe(img);
+    };
+    img.onerror = () => {
+      console.warn('Fallback to procedural lunar relief');
+      drawGlobe(null);
+    };
+
+    // Draw initial state immediately
+    drawGlobe(null);
   }, []);
 
   // Click on map to drop custom pin
