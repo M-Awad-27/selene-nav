@@ -16,6 +16,16 @@ const MAJOR_SOUTH_POLE_CRATERS = [
   { name: 'Peak Near Shackleton', lat: -89.68, lon: 129.0, radiusKm: 13.0, hasPsr: false, hasPeak: false },
 ];
 
+// Exact pixel-aligned PSR cold trap depression centers mapped to /lunar-south-pole.jpg (viewBox 640x640)
+const ALIGNED_PSR_TARGETS = [
+  { name: 'Shackleton', x: 320, y: 286, r: 22 },
+  { name: 'Shoemaker', x: 458, y: 177, r: 32 },
+  { name: 'Faustini', x: 446, y: 299, r: 28 },
+  { name: 'de Gerlache', x: 89, y: 324, r: 30 },
+  { name: 'Haworth', x: 372, y: 540, r: 34 },
+  { name: 'Cabeus', x: 148, y: 530, r: 38 },
+];
+
 export const PolarStereographicMap: React.FC = () => {
   const sitesRegistry = useMissionStore((s) => s.sitesRegistry);
   const selectedSiteId = useMissionStore((s) => s.selectedSiteId);
@@ -24,6 +34,7 @@ export const PolarStereographicMap: React.FC = () => {
   const setCustomCoordinate = useMissionStore((s) => s.setCustomCoordinate);
   const currentSun = useMissionStore((s) => s.currentSun);
   const currentDteActive = useMissionStore((s) => s.currentDteActive);
+  const setIsSimulationOpen = useMissionStore((s) => s.setIsSimulationOpen);
 
   const [isCoordInputOpen, setIsCoordInputOpen] = useState(false);
   const [insetHazardMode, setInsetHazardMode] = useState<'realistic' | 'slope-hazard'>('slope-hazard');
@@ -492,6 +503,42 @@ export const PolarStereographicMap: React.FC = () => {
           }}
           onClick={handleSvgClick}
         >
+          <defs>
+            <clipPath id="lunar-globe-clip">
+              <circle cx={CENTER} cy={CENTER} r={CENTER - 26} />
+            </clipPath>
+            <radialGradient id="lunar-vignette" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="#000000" stopOpacity="0" />
+              <stop offset="70%" stopColor="#000000" stopOpacity="0.05" />
+              <stop offset="88%" stopColor="#090A0D" stopOpacity="0.38" />
+              <stop offset="100%" stopColor="#090A0D" stopOpacity="0.85" />
+            </radialGradient>
+          </defs>
+
+          {/* Void background plate */}
+          <circle cx={CENTER} cy={CENTER} r={CENTER - 26} fill="#14171F" />
+
+          {/* NASA LOLA High-Contrast Satellite Imagery Texture */}
+          <image
+            href="/lunar-south-pole.jpg"
+            x={26}
+            y={26}
+            width={(CENTER - 26) * 2}
+            height={(CENTER - 26) * 2}
+            clipPath="url(#lunar-globe-clip)"
+            preserveAspectRatio="xMidYMid slice"
+          />
+
+          {/* Outer Limb Vignette */}
+          <circle
+            cx={CENTER}
+            cy={CENTER}
+            r={CENTER - 26}
+            fill="url(#lunar-vignette)"
+            clipPath="url(#lunar-globe-clip)"
+            pointerEvents="none"
+          />
+
           {/* Concentric Latitude Rings (80°S to 90°S) */}
           {latRings.map((lat) => {
             const { x } = polarStereographicProject(lat, 90);
@@ -558,7 +605,39 @@ export const PolarStereographicMap: React.FC = () => {
             );
           })}
 
-          {/* Dense 360° Raycast Fan (120 rays, 0.6px width: #E59A23 amber unblocked, #D9463E vermilion obstructed) */}
+          {/* Exact Pixel-Aligned Cryo-Indigo Permanently Shadowed Region (PSR) Contours */}
+          {ALIGNED_PSR_TARGETS.map((psr) => (
+            <g key={psr.name} pointerEvents="none">
+              <circle
+                cx={psr.x}
+                cy={psr.y}
+                r={psr.r}
+                fill="rgba(20, 42, 78, 0.42)"
+              />
+              <circle
+                cx={psr.x}
+                cy={psr.y}
+                r={psr.r}
+                fill="none"
+                stroke="rgba(40, 158, 142, 0.65)"
+                strokeWidth="1.2"
+                strokeDasharray="4,3"
+              />
+              <text
+                x={psr.x}
+                y={psr.y + 2.5}
+                fill="rgba(76, 201, 184, 0.88)"
+                fontSize="7.5"
+                fontFamily="'JetBrains Mono', monospace"
+                fontWeight="bold"
+                textAnchor="middle"
+              >
+                PSR
+              </text>
+            </g>
+          ))}
+
+          {/* Dense 360° Raycast Fan (120 rays, 0.6px width: #289E8E teal unblocked, #E59A23 amber obstructed) */}
           <g>
             {raycastRays.map((ray, i) => (
               <g key={i}>
@@ -567,7 +646,7 @@ export const PolarStereographicMap: React.FC = () => {
                   y1={ray.y1}
                   x2={ray.xSplit}
                   y2={ray.ySplit}
-                  stroke="#E59A23"
+                  stroke="#289E8E"
                   strokeWidth="0.6"
                   opacity="0.65"
                 />
@@ -577,34 +656,14 @@ export const PolarStereographicMap: React.FC = () => {
                     y1={ray.ySplit}
                     x2={ray.x2}
                     y2={ray.y2}
-                    stroke="#D9463E"
+                    stroke="#E59A23"
                     strokeWidth="0.6"
-                    opacity="0.45"
+                    opacity="0.50"
                   />
                 )}
               </g>
             ))}
           </g>
-
-          {/* PSR Micro-Labels inside Cold Traps */}
-          {MAJOR_SOUTH_POLE_CRATERS.filter((c) => c.hasPsr).map((c) => {
-            const p = projectToSvg(c.lat, c.lon);
-            return (
-              <text
-                key={c.name}
-                x={p.svgX}
-                y={p.svgY + 2.5}
-                fill="rgba(40, 158, 142, 0.75)"
-                fontSize="6.5"
-                fontFamily="var(--font-mono)"
-                textAnchor="middle"
-                fontWeight="bold"
-                pointerEvents="none"
-              >
-                PSR
-              </text>
-            );
-          })}
 
           {/* Benchmark Site Markers (Inactive Sites: 11px bold JetBrains Mono inside dark pill badge with 1px solid #4A5264) */}
           {benchmarkSites.map((siteItem) => {
@@ -728,20 +787,39 @@ export const PolarStereographicMap: React.FC = () => {
         <div className="inset-3d-hologram">
           <div className="inset-3d-header">
             <span>3D LOCAL CRATER HOLOGRAM</span>
-            <button
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: insetHazardMode === 'slope-hazard' ? 'var(--status-hazard)' : 'var(--accent-earth)',
-                fontFamily: 'var(--font-mono)',
-                fontSize: '0.52rem',
-                cursor: 'pointer',
-                fontWeight: 'bold',
-              }}
-              onClick={() => setInsetHazardMode(insetHazardMode === 'slope-hazard' ? 'realistic' : 'slope-hazard')}
-            >
-              {insetHazardMode === 'slope-hazard' ? 'HAZARD HEATMAP' : 'LUNAR SHADE'}
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <button
+                style={{
+                  background: 'rgba(229, 154, 35, 0.22)',
+                  border: '1px solid #E59A23',
+                  color: '#F7B955',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '0.50rem',
+                  padding: '1px 5px',
+                  borderRadius: '2px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                }}
+                onClick={() => setIsSimulationOpen(true)}
+                title="Launch Powered Descent, Touchdown & Surface Rover Digital Twin Simulation"
+              >
+                ▶ SIMULATE
+              </button>
+              <button
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: insetHazardMode === 'slope-hazard' ? 'var(--status-hazard)' : 'var(--accent-earth)',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '0.52rem',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                }}
+                onClick={() => setInsetHazardMode(insetHazardMode === 'slope-hazard' ? 'realistic' : 'slope-hazard')}
+              >
+                {insetHazardMode === 'slope-hazard' ? 'HAZARD HEATMAP' : 'LUNAR SHADE'}
+              </button>
+            </div>
           </div>
           <div style={{ flex: 1, position: 'relative' }}>
             <CraterTerrain3D shadingMode={insetHazardMode} compact={true} />

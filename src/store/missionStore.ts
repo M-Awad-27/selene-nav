@@ -56,6 +56,10 @@ interface MissionState {
   persona: PersonaMode;
   setPersona: (mode: PersonaMode) => void;
 
+  // ── Mission Simulation Deck ──
+  isSimulationOpen: boolean;
+  setIsSimulationOpen: (open: boolean) => void;
+
   // ── Time & Playback ──
   simulationDate: Date;
   timelineStart: Date;
@@ -107,6 +111,9 @@ const INITIAL_DATE = new Date('2026-11-15T00:00:00Z');
 export const useMissionStore = create<MissionState>((set, get) => ({
   persona: 'flight-dynamics',
   setPersona: (mode) => set({ persona: mode }),
+
+  isSimulationOpen: false,
+  setIsSimulationOpen: (open) => set({ isSimulationOpen: open }),
 
   simulationDate: INITIAL_DATE,
   timelineStart: INITIAL_DATE,

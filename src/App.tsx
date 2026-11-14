@@ -8,6 +8,7 @@ import { ContingencyMatrix } from './components/Quadrant4/ContingencyMatrix';
 import { EducatorPanel } from './components/Educator/EducatorPanel';
 import { JplInspectorModal } from './components/Modals/JplInspectorModal';
 import { ScenarioWalkthroughModal } from './components/Modals/ScenarioWalkthroughModal';
+import { DescentRoverSimulator } from './components/Simulation/DescentRoverSimulator';
 import { CURATED_LANDING_SITES } from './engine/lunarEphemeris';
 import './styles/selene-tactical.css';
 
@@ -148,6 +149,9 @@ export function App() {
         isOpen={isScenarioModalOpen}
         onClose={() => setIsScenarioModalOpen(false)}
       />
+
+      {/* ── Powered Descent, Touchdown & Surface Rover Simulator ── */}
+      <DescentRoverSimulator />
     </div>
   );
 }

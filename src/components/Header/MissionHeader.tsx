@@ -11,6 +11,7 @@ export const MissionHeader: React.FC<MissionHeaderProps> = ({ onOpenJplModal, on
   const setPersona = useMissionStore((s) => s.setPersona);
   const sunsetCountdown = useMissionStore((s) => s.sunsetCountdown);
   const earthsetCountdown = useMissionStore((s) => s.earthsetCountdown);
+  const setIsSimulationOpen = useMissionStore((s) => s.setIsSimulationOpen);
 
   return (
     <header className="flight-deck-header">
@@ -78,6 +79,24 @@ export const MissionHeader: React.FC<MissionHeaderProps> = ({ onOpenJplModal, on
           </div>
           <span className="led-text" style={{ fontSize: '0.54rem' }}>DATA LINK: OPTIMAL [JPL]</span>
         </div>
+
+        <button
+          className="btn-tactical-primary"
+          style={{
+            padding: '0.24rem 0.60rem',
+            fontSize: '0.60rem',
+            whiteSpace: 'nowrap',
+            backgroundColor: 'rgba(229, 154, 35, 0.22)',
+            borderColor: '#E59A23',
+            color: '#F7B955',
+            fontWeight: 'bold',
+            boxShadow: '0 0 10px rgba(229, 154, 35, 0.4)',
+          }}
+          onClick={() => setIsSimulationOpen(true)}
+          title="Launch Powered Descent, Touchdown & Surface Rover Digital Twin Simulation"
+        >
+          ▶ LAUNCH SIMULATION
+        </button>
 
         <button
           className="btn-tactical-secondary"
