@@ -44,11 +44,16 @@ export const MissionHeader: React.FC<MissionHeaderProps> = ({ onOpenJplModal, on
 
       {/* Live Operational Countdowns */}
       <div className="header-status">
-        {/* Sunset Countdown */}
-        <div className="countdown-block">
-          <span className="countdown-label">
-            {sunsetCountdown.isSetting ? 'TIME TO LOCAL SUNSET' : 'TIME TO LOCAL SUNRISE'}
-          </span>
+        {/* Solar Illumination Countdown */}
+        <div className={`countdown-block ${currentSunClear ? 'solar-active' : 'hazard-active'}`}>
+          <div className="countdown-header-row">
+            <span className="countdown-label">
+              ☀️ {sunsetCountdown.isSetting ? 'TIME TO SUNSET' : 'TIME TO SUNRISE'}
+            </span>
+            <span className={`countdown-tag ${currentSunClear ? 'tag-solar' : 'tag-hazard'}`}>
+              {currentSunClear ? 'ILLUMINATED' : 'OCCULTED'}
+            </span>
+          </div>
           <span
             className={`countdown-value ${
               currentSunClear ? 'solar' : 'hazard'
@@ -58,11 +63,16 @@ export const MissionHeader: React.FC<MissionHeaderProps> = ({ onOpenJplModal, on
           </span>
         </div>
 
-        {/* Earthset Countdown */}
-        <div className="countdown-block" style={{ marginLeft: '1rem' }}>
-          <span className="countdown-label">
-            {earthsetCountdown.isSetting ? 'TIME TO EARTHSET (LOS)' : 'TIME TO EARTHRISE (AOS)'}
-          </span>
+        {/* Earth Direct-to-Earth (DTE) Countdown */}
+        <div className={`countdown-block ${currentDteActive ? 'earth-active' : 'hazard-active'}`}>
+          <div className="countdown-header-row">
+            <span className="countdown-label">
+              📡 {earthsetCountdown.isSetting ? 'TIME TO LOS' : 'TIME TO AOS'}
+            </span>
+            <span className={`countdown-tag ${currentDteActive ? 'tag-earth' : 'tag-hazard'}`}>
+              {currentDteActive ? 'DTE LOCK' : 'COMM BLOCKED'}
+            </span>
+          </div>
           <span
             className={`countdown-value ${
               currentDteActive ? 'earth' : 'hazard'

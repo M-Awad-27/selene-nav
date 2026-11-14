@@ -302,9 +302,9 @@ export const useMissionStore = create<MissionState>((set, get) => ({
         target: 'sun',
         isCurrentlyVisible: currentSunVis,
         timeToCrossingMs: timeToSunsetMs,
-        formattedCountdown: currentSunVis
-          ? (timeToSunsetMs ? formatTacticalDuration(timeToSunsetMs) : 'PERMANENT LIGHT')
-          : (timeToSunsetMs ? `RISE IN ${formatTacticalDuration(timeToSunsetMs)}` : 'PERMANENT SHADOW'),
+        formattedCountdown: timeToSunsetMs
+          ? formatTacticalDuration(timeToSunsetMs)
+          : (currentSunVis ? 'PERMANENT LIGHT' : 'PERMANENT SHADOW'),
         nextCrossingDate: timeToSunsetMs ? new Date(simulationDate.getTime() + timeToSunsetMs) : null,
         isSetting: currentSunVis,
       },
@@ -312,9 +312,9 @@ export const useMissionStore = create<MissionState>((set, get) => ({
         target: 'earth',
         isCurrentlyVisible: currentEarthVis,
         timeToCrossingMs: timeToEarthsetMs,
-        formattedCountdown: currentEarthVis
-          ? (timeToEarthsetMs ? formatTacticalDuration(timeToEarthsetMs) : 'CONTINUOUS DTE')
-          : (timeToEarthsetMs ? `ACQUIRE IN ${formatTacticalDuration(timeToEarthsetMs)}` : 'OCCULTED / FAR SIDE'),
+        formattedCountdown: timeToEarthsetMs
+          ? formatTacticalDuration(timeToEarthsetMs)
+          : (currentEarthVis ? 'CONTINUOUS DTE' : 'OCCULTED / FAR SIDE'),
         nextCrossingDate: timeToEarthsetMs ? new Date(simulationDate.getTime() + timeToEarthsetMs) : null,
         isSetting: currentEarthVis,
       },

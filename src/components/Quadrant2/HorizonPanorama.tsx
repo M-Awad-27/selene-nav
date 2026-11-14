@@ -346,6 +346,12 @@ export const HorizonPanorama: React.FC = () => {
               {(() => {
                 const x = azToX(currentEarth.azimuthDeg);
                 const y = elToY(currentEarth.elevationDeg);
+                const isNearBottom = y > HEIGHT - 35;
+                const isNearRight = x > WIDTH - 120;
+                const textX = isNearRight ? -12 : 12;
+                const textAnchor = isNearRight ? 'end' : 'start';
+                const titleY = isNearBottom ? -16 : -4;
+                const subtitleY = isNearBottom ? -6 : 6;
                 return (
                   <g transform={`translate(${x}, ${y})`}>
                     <circle cx="0" cy="0" r="14" fill="url(#earthGlow)" />
@@ -359,21 +365,23 @@ export const HorizonPanorama: React.FC = () => {
                     />
                     <ellipse cx="0" cy="0" rx="8" ry="4" fill="none" stroke="var(--accent-earth)" strokeWidth="0.8" strokeDasharray="2,2" opacity="0.6" />
                     <text
-                      x="10"
-                      y="-4"
+                      x={textX}
+                      y={titleY}
                       fill="var(--accent-earth-hi)"
                       fontSize="8"
                       fontFamily="var(--font-mono)"
                       fontWeight="bold"
+                      textAnchor={textAnchor}
                     >
                       EARTH ({currentEarth.elevationDeg.toFixed(1)}°)
                     </text>
                     <text
-                      x="10"
-                      y="6"
+                      x={textX}
+                      y={subtitleY}
                       fill={currentDteActive ? 'var(--accent-earth-hi)' : 'var(--status-hazard)'}
                       fontSize="7"
                       fontFamily="var(--font-mono)"
+                      textAnchor={textAnchor}
                     >
                       {currentDteActive ? 'DTE LOCK [ACTIVE]' : 'TERRAIN OCCULTED'}
                     </text>
@@ -385,6 +393,12 @@ export const HorizonPanorama: React.FC = () => {
               {(() => {
                 const x = azToX(currentSun.azimuthDeg);
                 const y = elToY(currentSun.elevationDeg);
+                const isNearBottom = y > HEIGHT - 35;
+                const isNearRight = x > WIDTH - 120;
+                const textX = isNearRight ? -12 : 12;
+                const textAnchor = isNearRight ? 'end' : 'start';
+                const titleY = isNearBottom ? -16 : -4;
+                const subtitleY = isNearBottom ? -6 : 6;
                 return (
                   <g transform={`translate(${x}, ${y})`}>
                     <circle cx="0" cy="0" r="18" fill="url(#sunGlow)" />
@@ -397,21 +411,23 @@ export const HorizonPanorama: React.FC = () => {
                       strokeWidth="1.5"
                     />
                     <text
-                      x="12"
-                      y="-4"
+                      x={textX}
+                      y={titleY}
                       fill="var(--accent-solar-hi)"
                       fontSize="8"
                       fontFamily="var(--font-mono)"
                       fontWeight="bold"
+                      textAnchor={textAnchor}
                     >
                       SUN ({currentSun.elevationDeg.toFixed(1)}°)
                     </text>
                     <text
-                      x="12"
-                      y="6"
+                      x={textX}
+                      y={subtitleY}
                       fill={currentSunClear ? 'var(--accent-solar)' : 'var(--status-hazard)'}
                       fontSize="7"
                       fontFamily="var(--font-mono)"
+                      textAnchor={textAnchor}
                     >
                       {currentSunClear ? 'DIRECT ILLUMINATION' : 'CRATER RIM SHADOW'}
                     </text>

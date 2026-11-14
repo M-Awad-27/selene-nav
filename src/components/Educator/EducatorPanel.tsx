@@ -5,6 +5,7 @@ import { SOLAR_CONSTANT_W_M2 } from '../../engine/lunarEphemeris';
 export const EducatorPanel: React.FC = () => {
   const currentSun = useMissionStore((s) => s.currentSun);
   const currentIlluminationFraction = useMissionStore((s) => s.currentIlluminationFraction);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   // Interactive student / educator solar array simulator
   const [panelAreaM2, setPanelAreaM2] = useState(2.5);
@@ -24,28 +25,39 @@ export const EducatorPanel: React.FC = () => {
       style={{
         backgroundColor: 'var(--bg-surface-1)',
         border: '1px solid var(--border-hairline)',
-        padding: '1rem',
+        padding: isCollapsed ? '0.5rem 1rem' : '0.8rem 1rem',
         borderRadius: '2px',
         margin: '1px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '1rem',
+        gap: isCollapsed ? '0' : '0.8rem',
+        transition: 'all 0.2s ease-out',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
           <span className="badge-live">EDUCATOR & PUBLIC EXPLORER DECK</span>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.82rem', fontWeight: 'bold', color: 'var(--accent-solar-hi)' }}>
-            WHY IS THE MOON'S SOUTH POLE UNIQUE IN THE SOLAR SYSTEM?
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.80rem', fontWeight: 'bold', color: 'var(--accent-solar-hi)' }}>
+            WHY IS THE MOON'S SOUTH POLE UNIQUE? {isCollapsed ? '· 1.54° Axial Tilt · Cryo PSRs · Solar Mast Physics · Figure-8 Libration' : ''}
           </span>
         </div>
 
-        {/* Live Sun elevation pill */}
-        <span className="badge-precomputed">
-          CURRENT SUN ELEVATION: {currentSun.elevationDeg.toFixed(2)}°
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+          <span className="badge-precomputed" style={{ fontSize: '0.62rem' }}>
+            SUN ELEVATION: {currentSun.elevationDeg.toFixed(2)}°
+          </span>
+          <button
+            className="btn-tactical-secondary"
+            style={{ padding: '0.25rem 0.6rem', fontSize: '0.65rem' }}
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            title={isCollapsed ? 'Expand 4 educational visual explanation cards' : 'Collapse to compact avionics ribbon'}
+          >
+            {isCollapsed ? '▼ EXPAND DECK' : '▲ MINIMIZE DECK'}
+          </button>
+        </div>
       </div>
 
+      {!isCollapsed && (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
         {/* Card 1: 1.54° Axial Tilt & Eternal Light */}
         <div
@@ -162,6 +174,7 @@ export const EducatorPanel: React.FC = () => {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 };

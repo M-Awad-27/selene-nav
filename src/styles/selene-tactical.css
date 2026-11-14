@@ -595,30 +595,87 @@ body {
 
 
 /* ─────────────────────────────────────────────────────────────────────────
- * §14  COUNTDOWN TIMER DISPLAY
+ * §14  COUNTDOWN TIMER DISPLAY (Avionics Telemetry Blocks)
  * ───────────────────────────────────────────────────────────────────────── */
 .countdown-block {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
+  padding: 0.3rem 0.65rem;
+  background-color: var(--bg-surface-2);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-sm);
+  min-width: 155px;
   gap: 0.15rem;
+  transition: border-color var(--transition-fast);
+}
+
+.countdown-block.solar-active {
+  border-left: 2px solid var(--accent-solar);
+}
+
+.countdown-block.earth-active {
+  border-left: 2px solid var(--accent-earth);
+}
+
+.countdown-block.hazard-active {
+  border-left: 2px solid var(--status-hazard);
+}
+
+.countdown-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 0.5rem;
 }
 
 .countdown-label {
   font-family: var(--font-mono);
-  font-size: 0.55rem;
-  font-weight: 500;
-  letter-spacing: 0.12em;
+  font-size: 0.60rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.countdown-tag {
+  font-family: var(--font-mono);
+  font-size: 0.52rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.05rem 0.35rem;
+  border-radius: 2px;
+  white-space: nowrap;
+}
+
+.countdown-tag.tag-solar {
+  background-color: rgba(229, 154, 35, 0.18);
+  color: var(--accent-solar-hi);
+  border: 1px solid rgba(229, 154, 35, 0.4);
+}
+
+.countdown-tag.tag-earth {
+  background-color: rgba(40, 158, 142, 0.18);
+  color: var(--accent-earth-hi);
+  border: 1px solid rgba(40, 158, 142, 0.4);
+}
+
+.countdown-tag.tag-hazard {
+  background-color: rgba(217, 70, 62, 0.18);
+  color: var(--status-hazard);
+  border: 1px solid rgba(217, 70, 62, 0.4);
 }
 
 .countdown-value {
   font-family: var(--font-mono);
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   font-weight: 700;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   font-variant-numeric: tabular-nums;
+  line-height: 1.2;
 }
 
 .countdown-value.solar {
