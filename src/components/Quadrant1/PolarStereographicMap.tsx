@@ -13,6 +13,25 @@ export const PolarStereographicMap: React.FC = () => {
 
   const [hoveredSite, setHoveredSite] = useState<SiteRegistryItem | null>(null);
   const [viewMode, setViewMode] = useState<'2d' | '3d' | 'slope-hazard'>('2d');
+  const [isCoordInputOpen, setIsCoordInputOpen] = useState(false);
+  const [inputLat, setInputLat] = useState('-89.54');
+  const [inputLon, setInputLon] = useState('137.00');
+  const [inputElev, setInputElev] = useState('1.25');
+
+  const handleApplyCoordinates = (e: React.FormEvent) => {
+    e.preventDefault();
+    const lat = parseFloat(inputLat);
+    const lon = parseFloat(inputLon);
+    const elev = parseFloat(inputElev);
+    if (!isNaN(lat) && !isNaN(lon) && !isNaN(elev)) {
+      setCustomCoordinate({
+        latDeg: Math.max(-90, Math.min(90, lat)),
+        lonDeg: ((lon % 360) + 540) % 360 - 180,
+        elevationKm: elev,
+      });
+      setIsCoordInputOpen(false);
+    }
+  };
 
   // Map scale and center
   // At latitude -80 deg, phi = -80, (90 + phi)/2 = 5 deg.
@@ -135,8 +154,81 @@ export const PolarStereographicMap: React.FC = () => {
           >
             SLOPE COLOR
           </button>
+          <button
+            className={`btn-tactical-secondary ${isCoordInputOpen ? 'active' : ''}`}
+            style={{
+              padding: '0.2rem 0.45rem',
+              fontSize: '0.62rem',
+              borderLeftColor: isCoordInputOpen ? 'var(--status-hazard)' : undefined,
+            }}
+            onClick={() => setIsCoordInputOpen(!isCoordInputOpen)}
+            title="Enter custom lunar coordinates directly"
+          >
+            {isCoordInputOpen ? '✕ CLOSE' : '+ COORD'}
+          </button>
         </div>
       </div>
+
+      {/* Tactical Coordinate Input Drawer */}
+      {isCoordInputOpen && (
+        <form
+          onSubmit={handleApplyCoordinates}
+          style={{
+            backgroundColor: 'var(--bg-surface-1)',
+            borderBottom: '1px solid var(--border-hairline)',
+            padding: '0.4rem 0.8rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            fontFamily: 'var(--font-mono)',
+            fontSize: '0.65rem',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+            <span style={{ color: 'var(--text-muted)' }}>LAT:</span>
+            <input
+              type="text"
+              value={inputLat}
+              onChange={(e) => setInputLat(e.target.value)}
+              className="input-tactical"
+              style={{ width: '65px', padding: '2px 4px', fontSize: '0.65rem' }}
+              placeholder="-89.54"
+            />
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+            <span style={{ color: 'var(--text-muted)' }}>LON:</span>
+            <input
+              type="text"
+              value={inputLon}
+              onChange={(e) => setInputLon(e.target.value)}
+              className="input-tactical"
+              style={{ width: '65px', padding: '2px 4px', fontSize: '0.65rem' }}
+              placeholder="137.0"
+            />
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+            <span style={{ color: 'var(--text-muted)' }}>ALT(km):</span>
+            <input
+              type="text"
+              value={inputElev}
+              onChange={(e) => setInputElev(e.target.value)}
+              className="input-tactical"
+              style={{ width: '55px', padding: '2px 4px', fontSize: '0.65rem' }}
+              placeholder="1.25"
+            />
+          </div>
+
+          <button
+            type="submit"
+            className="btn-tactical-primary"
+            style={{ padding: '0.2rem 0.5rem', fontSize: '0.62rem' }}
+          >
+            INJECT VECTOR
+          </button>
+        </form>
+      )}
 
       {/* Main Viewport Content: 3D Terrain or 2D Polar Map */}
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>

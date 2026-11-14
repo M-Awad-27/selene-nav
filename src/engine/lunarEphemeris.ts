@@ -142,197 +142,56 @@ export function computeTopocentricPosition(
   target: 'sun' | 'earth',
 ): CelestialPosition {
   const astroTime = Astronomy.MakeTime(date);
+  const libration = Astronomy.Libration(astroTime);
 
-  // ── Step 1: Get body's geocentric equatorial position ──
-  // We compute the Sun's or Earth's position relative to the Moon.
-  // astronomy-engine gives us geocentric (Earth-centered) equatorial coordinates.
-  // We need selenocentric (Moon-centered) coordinates.
-
-  // Get the Moon's position from Earth (geocentric equatorial, AU)
-  const moonFromEarth = Astronomy.GeoVector(Astronomy.Body.Moon, astroTime, true);
-
-  let bodyFromMoon: { x: number; y: number; z: number };
-
-  if (target === 'earth') {
-    // Earth's position from Moon = negative of Moon's position from Earth
-    bodyFromMoon = {
-      x: -moonFromEarth.x,
-      y: -moonFromEarth.y,
-      z: -moonFromEarth.z,
-    };
-  } else {
-    // Sun's position from Earth (geocentric equatorial, AU)
-    const sunFromEarth = Astronomy.GeoVector(Astronomy.Body.Sun, astroTime, true);
-    // Sun's position from Moon = Sun from Earth - Moon from Earth
-    bodyFromMoon = {
-      x: sunFromEarth.x - moonFromEarth.x,
-      y: sunFromEarth.y - moonFromEarth.y,
-      z: sunFromEarth.z - moonFromEarth.z,
-    };
-  }
-
-  // ── Step 2: Convert from J2000 equatorial to selenographic body-fixed ──
-
-  // Selenographic sub-observer point gives us the Moon's orientation.
-  // We use the libration angles to build the rotation matrix.
-  // The libration object provides: elon (sub-Earth longitude), elat (sub-Earth latitude),
-  // and the position angle of the Moon's axis.
-
-  // For a more direct approach, we compute the body direction in the
-  // Moon's Mean Earth / Mean Rotation (ME) frame using libration parameters.
-
-  // Convert body position from AU to km
-  const AU_KM = 149597870.7;
-  const bx = bodyFromMoon.x * AU_KM;
-  const by = bodyFromMoon.y * AU_KM;
-  const bz = bodyFromMoon.z * AU_KM;
-  const bodyDistKm = Math.sqrt(bx * bx + by * by + bz * bz);
-
-  // Normalize to unit vector in J2000 equatorial
-  const ux = bx / bodyDistKm;
-  const uy = by / bodyDistKm;
-  const uz = bz / bodyDistKm;
-
-  // Convert the J2000 equatorial unit vector to ecliptic coordinates
-  // Obliquity of J2000 ecliptic: 23.4392911° (IAU 2000)
-  const obliquityRad = 23.4392911 * DEG2RAD;
-  const cosObl = Math.cos(obliquityRad);
-  const sinObl = Math.sin(obliquityRad);
-
-  // Rotate from equatorial to ecliptic
-  const ex = ux;
-  const ey = uy * cosObl + uz * sinObl;
-  const ez = -uy * sinObl + uz * cosObl;
-
-  // ── Step 3: Convert to selenographic coordinates using libration ──
-  // The selenographic longitude of the sub-solar/sub-Earth point can be
-  // approximated from the ecliptic coordinates and libration parameters.
-
-  // Libration gives us how the Moon's prime meridian is oriented.
-  // We use the Moon's north pole direction and prime meridian to define
-  // the body-fixed frame. For computational efficiency at 60 FPS,
-  // we use a simplified but accurate analytical approach:
-
-  // The Moon's mean rotation axis is tilted 1.54° from the ecliptic normal.
-  // The ascending node of the lunar equator on the ecliptic regresses with
-  // a period of 18.6 years.
-
-  // Moon's north pole in ecliptic coords (IAU mean direction):
-  // α₀ = 269.9949° + 0.0031°T, δ₀ = 66.5392° + 0.0130°T (J2000 equatorial)
-  // In ecliptic: pole lat ≈ 90° - 1.54° = 88.46° from ecliptic north
-
-  // For the purpose of computing topocentric az/el with sufficient accuracy
-  // for this application, we transform through the libration-corrected
-  // sub-observer geometry:
-
-  // Use astronomy-engine's libration: elat = selenographic lat of sub-Earth point,
-  // elon = selenographic lon of sub-Earth point. These encode the physical
-  // and optical libration combined.
-
-  // For the Sun, we need the selenographic coordinates of the sub-solar point.
-  // The sub-solar point can be computed from the Sun-Moon vector transformed
-  // into the selenographic frame.
-
-  // The ascending node of the lunar equator on the ecliptic (mean):
-  // Ω = 125.0446° - 0.0529921°d  (where d = days from J2000)
-  const d = astroTime.tt; // days from J2000
-  const ascNodeRad = (125.0446 - 0.0529921 * d) * DEG2RAD;
-
-  // Rotation matrix: ecliptic → selenographic body-fixed
-  // Step 1: Rotate by -Ω around ecliptic Z (align ascending node with X)
-  // Step 2: Rotate by -(90°-moonPoleEclLat) = -1.54° around new X (tilt pole)
-  // Step 3: Rotate by -W (prime meridian angle) around new Z
-
-  // Prime meridian angle W (degrees from ascending node):
-  // W = 38.3213° + 13.17635815°d + libration corrections
-  // The libration corrections are already accounted for in the sub-Earth point.
-
-  // For computational efficiency, we use a direct vector approach:
-  const cosNode = Math.cos(ascNodeRad);
-  const sinNode = Math.sin(ascNodeRad);
-  const tiltRad = LUNAR_AXIAL_TILT_DEG * DEG2RAD;
-  const cosTilt = Math.cos(tiltRad);
-  const sinTilt = Math.sin(tiltRad);
-
-  // W angle (sidereal rotation of Moon)
-  const W = (38.3213 + 13.17635815 * d) * DEG2RAD;
-  const cosW = Math.cos(W);
-  const sinW = Math.sin(W);
-
-  // Apply rotations to get selenographic body-fixed coordinates
-  // R = Rz(-W) · Rx(-tilt) · Rz(-Ω) · [ecliptic vector]
-
-  // First: Rz(-Ω)
-  const x1 = ex * cosNode + ey * sinNode;
-  const y1 = -ex * sinNode + ey * cosNode;
-  const z1 = ez;
-
-  // Second: Rx(-tilt)  [tilt around X by -1.54°]
-  const x2 = x1;
-  const y2 = y1 * cosTilt + z1 * sinTilt;
-  const z2 = -y1 * sinTilt + z1 * cosTilt;
-
-  // Third: Rz(-W)  [prime meridian rotation]
-  const xSel = x2 * cosW + y2 * sinW;
-  const ySel = -x2 * sinW + y2 * cosW;
-  const zSel = z2;
-
-  // Selenographic longitude and latitude of the body
-  const bodySelLon = Math.atan2(ySel, xSel); // radians
-  const bodySelLat = Math.asin(clampValue(zSel, -1, 1)); // radians
-
-  // ── Step 4: Convert to topocentric horizontal coordinates ──
-  // Observer's selenographic position
+  // Observer selenographic coordinates
   const obsLat = site.latDeg * DEG2RAD;
   const obsLon = site.lonDeg * DEG2RAD;
+  const rObs = R_MOON_KM + (site.elevationKm || 0);
 
-  // Compute the body's direction relative to the observer in the local frame.
-  // Angular offset from the observer on the selenographic sphere:
-  const dLon = bodySelLon - obsLon;
+  // Sub-body selenographic coordinates & distance
+  let bodyLatDeg: number;
+  let bodyLonDeg: number;
+  let bodyDistKm: number;
 
-  // Standard astronomical azimuth/elevation from selenographic coords:
-  // Using the selenographic equivalent of the geographic az/el transform.
-  const cosBodyLat = Math.cos(bodySelLat);
-  const sinBodyLat = Math.sin(bodySelLat);
-  const cosObsLat = Math.cos(obsLat);
-  const sinObsLat = Math.sin(obsLat);
-  const cosDLon = Math.cos(dLon);
-  const sinDLon = Math.sin(dLon);
-
-  // Elevation (altitude) above local horizon:
-  // sin(el) = sin(obsLat)*sin(bodyLat) + cos(obsLat)*cos(bodyLat)*cos(dLon)
-  // This is the standard formula for the angular altitude of a point on a
-  // sphere as seen from another point, measuring from the tangent plane.
-  const sinEl = sinObsLat * sinBodyLat + cosObsLat * cosBodyLat * cosDLon;
-  const elevationRad = Math.asin(clampValue(sinEl, -1, 1));
-
-  // Azimuth (0 = North, 90 = East, measured clockwise):
-  // tan(az) = sin(dLon) / (cos(obsLat)*tan(bodyLat) - sin(obsLat)*cos(dLon))
-  const azX = sinDLon * cosBodyLat;
-  const azY = cosObsLat * sinBodyLat - sinObsLat * cosBodyLat * cosDLon;
-  let azimuthRad = Math.atan2(azX, azY);
-
-  // Normalize to [0, 2π)
-  if (azimuthRad < 0) azimuthRad += 2 * Math.PI;
-
-  // Apply parallax correction for surface offset from center
-  // At lunar distances, the parallax from surface to center is small but
-  // non-negligible for Earth (Moon radius / Earth distance ≈ 0.27°).
-  // For the Sun, it's negligible (< 0.001°).
-  let parallaxCorrectionRad = 0;
   if (target === 'earth') {
-    // Horizontal parallax ≈ asin(R_Moon / distance)
-    parallaxCorrectionRad = Math.asin(
-      (R_MOON_KM + site.elevationKm) / bodyDistKm,
-    );
+    bodyLatDeg = libration.elat;
+    bodyLonDeg = libration.elon;
+    bodyDistKm = libration.dist_km;
+  } else {
+    bodyLatDeg = libration.mlat;
+    bodyLonDeg = libration.mlon;
+    bodyDistKm = 149597870.7; // 1 AU nominal Sun-Moon distance in km
   }
 
-  // The actual topocentric elevation is reduced by the parallax
-  const topoElevDeg = (elevationRad - parallaxCorrectionRad) * RAD2DEG;
-  const topoAzDeg = azimuthRad * RAD2DEG;
+  const phi2 = bodyLatDeg * DEG2RAD;
+  const lam2 = bodyLonDeg * DEG2RAD;
+  const dLam = lam2 - obsLon;
+
+  // Great-circle angular distance (zenith angle at lunar center)
+  const cosC =
+    Math.sin(obsLat) * Math.sin(phi2) +
+    Math.cos(obsLat) * Math.cos(phi2) * Math.cos(dLam);
+  const c = Math.acos(clampValue(cosC, -1, 1));
+
+  // Rigorous topocentric parallax correction:
+  // Observer is at distance rObs from lunar center, body is at distance bodyDistKm
+  const zTopo = Math.atan2(
+    bodyDistKm * Math.sin(c),
+    bodyDistKm * Math.cos(c) - rObs,
+  );
+  const topoElevDeg = 90 - zTopo * RAD2DEG;
+
+  // Topocentric Azimuth (clockwise from North: 0° = N, 90° = E)
+  const y = Math.sin(dLam) * Math.cos(phi2);
+  const x =
+    Math.cos(obsLat) * Math.sin(phi2) -
+    Math.sin(obsLat) * Math.cos(phi2) * Math.cos(dLam);
+  let azDeg = Math.atan2(y, x) * RAD2DEG;
+  if (azDeg < 0) azDeg += 360;
 
   return {
-    azimuthDeg: normalizeAngle360(topoAzDeg),
+    azimuthDeg: normalizeAngle360(azDeg),
     elevationDeg: topoElevDeg,
     distanceKm: bodyDistKm,
   };

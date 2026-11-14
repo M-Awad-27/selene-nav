@@ -231,30 +231,60 @@ export const useMissionStore = create<MissionState>((set, get) => ({
     // 3. Power & Link Budget
     const power = evaluatePowerAndLinkBudget(sun.elevationDeg, earth.elevationDeg, illumFrac, dteActive);
 
-    // 4. Horizon Crossing Countdowns (search forward up to 30 days)
-    const stepHours = 0.5;
-    const maxSteps = 720; // 15 days
+    // 4. Horizon Crossing Countdowns (Fast Coarse + Bisection Search for 60 FPS)
+    const coarseStepHours = 3.0; // Coarse search over 720 hours (30 days)
+    const maxCoarseSteps = 240;
     let timeToSunsetMs: number | null = null;
     let timeToEarthsetMs: number | null = null;
     const currentSunVis = sunLos.isClear;
     const currentEarthVis = earthLos.isClear;
 
-    for (let i = 1; i < maxSteps; i++) {
-      const checkDate = new Date(simulationDate.getTime() + i * stepHours * 3600000);
-      
+    for (let i = 1; i < maxCoarseSteps; i++) {
+      const checkDate = new Date(simulationDate.getTime() + i * coarseStepHours * 3600000);
+
+      // Sun crossing
       if (timeToSunsetMs === null) {
         const s = computeTopocentricPosition(checkDate, siteCoord, 'sun');
         const sLos = evaluateLineOfSight(s.azimuthDeg, s.elevationDeg, profile, 'sun', mastHeightMeters);
         if (sLos.isClear !== currentSunVis) {
-          timeToSunsetMs = i * stepHours * 3600000;
+          // Bisection refine between (i-1) and i
+          let tLow = (i - 1) * coarseStepHours * 3600000;
+          let tHigh = i * coarseStepHours * 3600000;
+          for (let b = 0; b < 6; b++) {
+            const tMid = (tLow + tHigh) / 2;
+            const midDate = new Date(simulationDate.getTime() + tMid);
+            const sm = computeTopocentricPosition(midDate, siteCoord, 'sun');
+            const smLos = evaluateLineOfSight(sm.azimuthDeg, sm.elevationDeg, profile, 'sun', mastHeightMeters);
+            if (smLos.isClear === currentSunVis) {
+              tLow = tMid;
+            } else {
+              tHigh = tMid;
+            }
+          }
+          timeToSunsetMs = tHigh;
         }
       }
 
+      // Earth crossing
       if (timeToEarthsetMs === null) {
         const e = computeTopocentricPosition(checkDate, siteCoord, 'earth');
         const eLos = evaluateLineOfSight(e.azimuthDeg, e.elevationDeg, profile, 'earth', mastHeightMeters);
         if (eLos.isClear !== currentEarthVis) {
-          timeToEarthsetMs = i * stepHours * 3600000;
+          // Bisection refine between (i-1) and i
+          let tLow = (i - 1) * coarseStepHours * 3600000;
+          let tHigh = i * coarseStepHours * 3600000;
+          for (let b = 0; b < 6; b++) {
+            const tMid = (tLow + tHigh) / 2;
+            const midDate = new Date(simulationDate.getTime() + tMid);
+            const em = computeTopocentricPosition(midDate, siteCoord, 'earth');
+            const emLos = evaluateLineOfSight(em.azimuthDeg, em.elevationDeg, profile, 'earth', mastHeightMeters);
+            if (emLos.isClear === currentEarthVis) {
+              tLow = tMid;
+            } else {
+              tHigh = tMid;
+            }
+          }
+          timeToEarthsetMs = tHigh;
         }
       }
 

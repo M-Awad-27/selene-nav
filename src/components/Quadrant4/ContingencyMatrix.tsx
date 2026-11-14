@@ -55,6 +55,65 @@ export const ContingencyMatrix: React.FC = () => {
   const deltaEclipse = metricsB.maxEclipseHours - metricsA.maxEclipseHours;
   const deltaSlope = siteB.slopeDeg - siteA.slopeDeg;
 
+  const sunHoursA = (metricsA.solarFraction * 708).toFixed(0);
+  const sunHoursB = (metricsB.solarFraction * 708).toFixed(0);
+  const dteHoursA = (metricsA.dteFraction * 708).toFixed(0);
+  const dteHoursB = (metricsB.dteFraction * 708).toFixed(0);
+
+  const handleExportBriefing = () => {
+    const report = `================================================================================
+ALRAKIS // SELENE-NAV — MISSION CONTINGENCY EVALUATION BRIEFING
+NASA Space Apps Challenge 2026 · Virtual Islamabad Chapter · Team Alrakis
+================================================================================
+Generated at UTC: ${new Date().toISOString()}
+Simulation Window: 708-Hour Lunar Synodic Month (Epoch: ${timelineStart.toISOString()})
+Launch Slip Offset: +${launchSlipDays} Days (${launchSlipDays * 24} Hours)
+
+[NOMINAL TARGET - SITE A]
+Name: ${siteA.name} (${siteA.program})
+Coordinates: Lat ${siteA.lat}°S, Lon ${siteA.lon}°E, Alt ${siteA.elevationKm} km
+Local Slope Hazard: ${siteA.slopeDeg}° (${siteA.slopeDeg > 10 ? 'HAZARDOUS' : 'NOMINAL'})
+Solar Sunlight Hours: ${sunHoursA}h / 708h (${(metricsA.solarFraction * 100).toFixed(1)}%)
+Direct-to-Earth Comm: ${dteHoursA}h / 708h (${(metricsA.dteFraction * 100).toFixed(1)}%)
+Max Continuous Eclipse: ${metricsA.maxEclipseHours.toFixed(1)}h
+Composite Feasibility Score: ${metricsA.score} / 100
+
+[CONTINGENCY TARGET - SITE B]
+Name: ${siteB.name} (${siteB.program})
+Coordinates: Lat ${siteB.lat}°S, Lon ${siteB.lon}°E, Alt ${siteB.elevationKm} km
+Local Slope Hazard: ${siteB.slopeDeg}° (${siteB.slopeDeg > 10 ? 'HAZARDOUS' : 'NOMINAL'})
+Solar Sunlight Hours: ${sunHoursB}h / 708h (${(metricsB.solarFraction * 100).toFixed(1)}%)
+Direct-to-Earth Comm: ${dteHoursB}h / 708h (${(metricsB.dteFraction * 100).toFixed(1)}%)
+Max Continuous Eclipse: ${metricsB.maxEclipseHours.toFixed(1)}h
+Composite Feasibility Score: ${metricsB.score} / 100
+
+[DELTA METRIC COMPARISON (B - A)]
+Δ Composite Score: ${deltaScore >= 0 ? '+' : ''}${deltaScore} pts
+Δ Solar Illumination: ${deltaSun >= 0 ? '+' : ''}${deltaSun.toFixed(1)}% (${(parseFloat(sunHoursB) - parseFloat(sunHoursA)).toFixed(0)}h)
+Δ Direct-to-Earth Comm: ${deltaDte >= 0 ? '+' : ''}${deltaDte.toFixed(1)}% (${(parseFloat(dteHoursB) - parseFloat(dteHoursA)).toFixed(0)}h)
+Δ Max Eclipse Duration: ${deltaEclipse > 0 ? '+' : ''}${deltaEclipse.toFixed(1)}h
+Δ Terrain Slope: ${deltaSlope > 0 ? '+' : ''}${deltaSlope.toFixed(1)}°
+
+OPERATIONAL RECOMMENDATION:
+${deltaScore >= 0
+  ? `CONTINGENCY FEASIBLE: Site B improves mission score by +${deltaScore} points under a +${launchSlipDays}-day launch delay.`
+  : `CAUTION: Nominal Site A provides superior overall margin despite a +${launchSlipDays}-day slip.`}
+
+DATA SOURCES & DISCLOSURE:
+Topography: NASA GSFC LOLA 80m DEM (Polar Stereographic GDR)
+Ephemerides: Analytical Airless Ephemeris verified via NASA JPL Horizons API (coord@301)
+License: MIT Open-Source · Team Lead: Muhammad Awad (mawad27727@gmail.com)
+================================================================================`;
+
+    const blob = new Blob([report], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `SELENE_NAV_BRIEFING_${siteA.name.replace(/\s+/g, '_')}_VS_${siteB.name.replace(/\s+/g, '_')}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
       {/* Subheader: Contingency Selectors */}
@@ -156,8 +215,8 @@ export const ContingencyMatrix: React.FC = () => {
             {/* Solar Fraction */}
             <tr>
               <td>Solar Sunlight Fraction</td>
-              <td>{(metricsA.solarFraction * 100).toFixed(1)}%</td>
-              <td>{(metricsB.solarFraction * 100).toFixed(1)}%</td>
+              <td>{(metricsA.solarFraction * 100).toFixed(1)}% <span style={{ color: 'var(--text-muted)' }}>({sunHoursA}h)</span></td>
+              <td>{(metricsB.solarFraction * 100).toFixed(1)}% <span style={{ color: 'var(--text-muted)' }}>({sunHoursB}h)</span></td>
               <td
                 style={{
                   textAlign: 'right',
@@ -186,8 +245,8 @@ export const ContingencyMatrix: React.FC = () => {
             {/* DTE Comm Link */}
             <tr>
               <td>Direct-to-Earth (DTE) Link</td>
-              <td>{(metricsA.dteFraction * 100).toFixed(1)}%</td>
-              <td>{(metricsB.dteFraction * 100).toFixed(1)}%</td>
+              <td>{(metricsA.dteFraction * 100).toFixed(1)}% <span style={{ color: 'var(--text-muted)' }}>({dteHoursA}h)</span></td>
+              <td>{(metricsB.dteFraction * 100).toFixed(1)}% <span style={{ color: 'var(--text-muted)' }}>({dteHoursB}h)</span></td>
               <td
                 style={{
                   textAlign: 'right',
@@ -216,10 +275,18 @@ export const ContingencyMatrix: React.FC = () => {
                 {deltaSlope > 0 ? `+${deltaSlope.toFixed(1)}°` : `${deltaSlope.toFixed(1)}°`}
               </td>
             </tr>
+
+            {/* Vertical Solar Mast Flux */}
+            <tr>
+              <td>Vertical Mast Flux (Peak)</td>
+              <td style={{ color: 'var(--accent-solar-hi)' }}>1,360 W/m²</td>
+              <td style={{ color: 'var(--accent-solar-hi)' }}>1,360 W/m²</td>
+              <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>NOMINAL</td>
+            </tr>
           </tbody>
         </table>
 
-        {/* Tactical Recommendation Badge */}
+        {/* Tactical Recommendation Badge & Export Action */}
         <div
           style={{
             marginTop: '0.6rem',
@@ -230,19 +297,34 @@ export const ContingencyMatrix: React.FC = () => {
             borderRadius: '2px',
             fontFamily: 'var(--font-mono)',
             fontSize: '0.65rem',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '0.6rem',
           }}
         >
-          <div style={{ color: 'var(--text-primary)', fontWeight: 'bold' }}>
-            {deltaScore >= 0
-              ? 'RECOMMENDATION: SITE B CONTINGENCY FEASIBLE'
-              : 'CAUTION: NOMINAL SITE A EXHIBITS SUPERIOR METRICS'}
+          <div>
+            <div style={{ color: 'var(--text-primary)', fontWeight: 'bold' }}>
+              {deltaScore >= 0
+                ? 'RECOMMENDATION: SITE B CONTINGENCY FEASIBLE'
+                : 'CAUTION: NOMINAL SITE A EXHIBITS SUPERIOR METRICS'}
+            </div>
+            <div style={{ color: 'var(--text-secondary)', marginTop: '2px' }}>
+              {launchSlipDays > 0 ? `Accounted for +${launchSlipDays}-day orbital delay. ` : ''}
+              {deltaScore >= 0
+                ? `Site B improves composite score by +${deltaScore} pts with ${(metricsB.solarFraction * 100).toFixed(0)}% solar illumination.`
+                : `Site A provides ${(metricsA.solarFraction * 100).toFixed(0)}% solar fraction vs ${(metricsB.solarFraction * 100).toFixed(0)}% at Site B.`}
+            </div>
           </div>
-          <div style={{ color: 'var(--text-secondary)', marginTop: '2px' }}>
-            {launchSlipDays > 0 ? `Accounted for +${launchSlipDays}-day orbital delay. ` : ''}
-            {deltaScore >= 0
-              ? `Site B improves composite score by +${deltaScore} pts with ${(metricsB.solarFraction * 100).toFixed(0)}% solar illumination.`
-              : `Site A provides ${(metricsA.solarFraction * 100).toFixed(0)}% solar fraction vs ${(metricsB.solarFraction * 100).toFixed(0)}% at Site B.`}
-          </div>
+
+          <button
+            className="btn-tactical-primary"
+            style={{ padding: '0.35rem 0.65rem', fontSize: '0.65rem', flexShrink: 0 }}
+            onClick={handleExportBriefing}
+            title="Download formatted NASA Artemis mission contingency report"
+          >
+            EXPORT BRIEFING
+          </button>
         </div>
       </div>
     </div>
