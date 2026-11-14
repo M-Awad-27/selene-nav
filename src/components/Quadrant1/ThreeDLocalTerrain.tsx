@@ -95,7 +95,6 @@ export const ThreeDLocalTerrain: React.FC<ThreeDLocalTerrainProps> = ({ shadingM
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i);
       const z = pos.getZ(i);
-      const distFromCenter = Math.sqrt(x * x + z * z);
 
       let y = 0;
       if (selectedSiteId.includes('shackleton') || selectedSiteId.includes('haworth')) {

@@ -17,5 +17,14 @@ export default defineConfig({
   build: {
     target: 'es2022',
     sourcemap: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          three: ['three'],
+          astronomy: ['astronomy-engine'],
+          vendor: ['react', 'react-dom', 'zustand'],
+        },
+      },
+    },
   },
 });

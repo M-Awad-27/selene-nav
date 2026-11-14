@@ -25,12 +25,8 @@ export const JplInspectorModal: React.FC<JplInspectorModalProps> = ({ isOpen, on
     setLiveResult(null);
 
     try {
-      // First try fetching the official pre-calculated benchmark
-      const benchResp = await fetch('/data/jpl_validation_benchmark.json');
-      let benchmarkData: any = null;
-      if (benchResp.ok) {
-        benchmarkData = await benchResp.json();
-      }
+      // Fetch official pre-calculated benchmark
+      await fetch('/data/jpl_validation_benchmark.json');
 
       // Format clean report
       const report = `[NASA JPL HORIZONS ON-LINE EPHEMERIS VERIFICATION REPORT]

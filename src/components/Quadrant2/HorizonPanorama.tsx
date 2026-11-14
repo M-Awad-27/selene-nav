@@ -303,6 +303,35 @@ export const HorizonPanorama: React.FC = () => {
                 );
               })()}
 
+              {/* Earth Libration Trajectory Trace */}
+              {(() => {
+                let libD = '';
+                earthLibrationLoop.forEach((p, idx) => {
+                  const x = azToX(p.az);
+                  const y = elToY(p.el);
+                  if (idx === 0) {
+                    libD += `M ${x.toFixed(1)} ${y.toFixed(1)}`;
+                  } else {
+                    const prevX = azToX(earthLibrationLoop[idx - 1].az);
+                    if (Math.abs(x - prevX) < 150) {
+                      libD += ` L ${x.toFixed(1)} ${y.toFixed(1)}`;
+                    } else {
+                      libD += ` M ${x.toFixed(1)} ${y.toFixed(1)}`;
+                    }
+                  }
+                });
+                return (
+                  <path
+                    d={libD}
+                    fill="none"
+                    stroke="var(--accent-earth)"
+                    strokeWidth="1.2"
+                    strokeDasharray="2,2"
+                    opacity="0.5"
+                  />
+                );
+              })()}
+
               {/* Terrain Skyline Silhouette Fill */}
               {terrainPathD && (
                 <path

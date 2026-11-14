@@ -71,6 +71,8 @@ export const PolarStereographicMap: React.FC = () => {
         id: 'custom-pin',
         name: `Custom [${customCoordinate.latDeg.toFixed(2)}°, ${customCoordinate.lonDeg.toFixed(2)}°]`,
         program: 'User Custom Vector',
+        lat: customCoordinate.latDeg,
+        lon: customCoordinate.lonDeg,
         elevationKm: customCoordinate.elevationKm,
         slopeDeg: 5.0,
         profile: 'Custom user-dropped coordinate at Lunar South Pole',
