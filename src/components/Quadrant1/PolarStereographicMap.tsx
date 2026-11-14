@@ -3,19 +3,17 @@ import { useMissionStore } from '../../store/missionStore';
 import { polarStereographicProject, R_MOON_KM } from '../../engine/lunarEphemeris';
 import { ThreeDLocalTerrain } from './ThreeDLocalTerrain';
 
-// Curated South Pole Craters for Procedural Hillshaded Relief
+// Curated Major South Pole Craters for Continuous Topographic Hillshade Relief
 const SOUTH_POLE_CRATERS = [
-  { name: 'Shackleton', lat: -89.54, lon: 137.0, radiusKm: 21.0, depthKm: 4.2, hasPsr: true },
-  { name: 'Shoemaker', lat: -88.10, lon: 45.0, radiusKm: 50.0, depthKm: 3.5, hasPsr: true },
-  { name: 'Faustini', lat: -87.30, lon: 77.0, radiusKm: 39.0, depthKm: 3.1, hasPsr: true },
-  { name: 'Haworth', lat: -87.45, lon: -5.0, radiusKm: 35.0, depthKm: 3.8, hasPsr: true },
-  { name: 'de Gerlache', lat: -88.50, lon: -88.0, radiusKm: 32.0, depthKm: 2.9, hasPsr: true },
-  { name: 'Cabeus', lat: -84.90, lon: -35.5, radiusKm: 100.0, depthKm: 4.0, hasPsr: true },
-  { name: 'Nobile', lat: -85.20, lon: 53.0, radiusKm: 73.0, depthKm: 3.2, hasPsr: true },
-  { name: 'Amundsen', lat: -84.50, lon: 83.0, radiusKm: 105.0, depthKm: 4.8, hasPsr: true },
-  { name: 'Slater', lat: -88.10, lon: 110.0, radiusKm: 25.0, depthKm: 2.5, hasPsr: true },
-  { name: 'Wiechert', lat: -84.30, lon: 165.0, radiusKm: 41.0, depthKm: 2.8, hasPsr: false },
-  { name: 'Idel\'son', lat: -81.20, lon: 110.0, radiusKm: 60.0, depthKm: 3.0, hasPsr: false },
+  { name: 'Shackleton', lat: -89.54, lon: 137.0, radiusKm: 21.0, hasPsr: true },
+  { name: 'Peak Near Shackleton', lat: -89.68, lon: 129.0, radiusKm: 14.0, hasPsr: false },
+  { name: 'Shoemaker', lat: -88.10, lon: 45.0, radiusKm: 50.0, hasPsr: true },
+  { name: 'Faustini', lat: -87.30, lon: 77.0, radiusKm: 39.0, hasPsr: true },
+  { name: 'Haworth', lat: -87.45, lon: -5.0, radiusKm: 35.0, hasPsr: true },
+  { name: 'de Gerlache', lat: -88.50, lon: -88.0, radiusKm: 32.0, hasPsr: true },
+  { name: 'Cabeus', lat: -84.90, lon: -35.5, radiusKm: 100.0, hasPsr: true },
+  { name: 'Nobile', lat: -85.20, lon: 53.0, radiusKm: 73.0, hasPsr: true },
+  { name: 'Amundsen', lat: -84.50, lon: 83.0, radiusKm: 105.0, hasPsr: true },
 ];
 
 export const PolarStereographicMap: React.FC = () => {
@@ -37,7 +35,7 @@ export const PolarStereographicMap: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // Map projection scale
-  const RHO_MAX_KM = 2 * R_MOON_KM * Math.tan((10.0 * Math.PI) / 360.0); // 80°S border ≈ 304 km
+  const RHO_MAX_KM = 2 * R_MOON_KM * Math.tan((10.0 * Math.PI) / 360.0);
   const VIEWBOX_SIZE = 640;
   const CENTER = VIEWBOX_SIZE / 2;
   const SCALE = (CENTER - 28) / RHO_MAX_KM;
@@ -50,6 +48,16 @@ export const PolarStereographicMap: React.FC = () => {
     };
   };
 
+  const defaultSite = {
+    id: 'shackleton-rim',
+    name: 'Shackleton Rim',
+    program: 'Artemis / South Pole',
+    lat: -89.54,
+    lon: 137.0,
+    elevationKm: 1.25,
+    slopeDeg: 4.2,
+  };
+
   const selectedSite = customCoordinate
     ? {
         id: 'custom-pin',
@@ -60,15 +68,7 @@ export const PolarStereographicMap: React.FC = () => {
         elevationKm: customCoordinate.elevationKm,
         slopeDeg: 4.2,
       }
-    : (sitesRegistry.find((s) => s.id === selectedSiteId) || sitesRegistry[0] || {
-        id: 'shackleton-rim',
-        name: 'Shackleton Rim',
-        program: 'Artemis / South Pole',
-        lat: -89.54,
-        lon: 137.0,
-        elevationKm: 1.25,
-        slopeDeg: 4.2,
-      });
+    : (sitesRegistry.find((s) => s.id === selectedSiteId) || sitesRegistry[0] || defaultSite);
 
   const activeCoord = {
     lat: selectedSite.lat,
@@ -77,7 +77,7 @@ export const PolarStereographicMap: React.FC = () => {
 
   const activePos = projectToSvg(activeCoord.lat, activeCoord.lon);
 
-  // Procedural LOLA Hillshade Relief Canvas Painting
+  // Procedural Photorealistic LOLA Hillshade Relief Canvas Painting
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -88,17 +88,18 @@ export const PolarStereographicMap: React.FC = () => {
     canvas.width = size;
     canvas.height = size;
 
-    // 1. Deep space void
+    // 1. Deep space background
     ctx.fillStyle = '#090A0D';
     ctx.fillRect(0, 0, size, size);
 
-    // 2. Lunar Regolith Plate (80°S boundary circle)
+    // 2. Realistic LOLA Anorthositic Lunar Highland Crust (80°S circular polar disk)
     const plateRadius = CENTER - 26;
-    const plateGrad = ctx.createRadialGradient(CENTER, CENTER, 10, CENTER, CENTER, plateRadius);
-    plateGrad.addColorStop(0, '#1E232D');
-    plateGrad.addColorStop(0.45, '#171B23');
-    plateGrad.addColorStop(0.85, '#11141B');
-    plateGrad.addColorStop(1.0, '#090A0D');
+    const plateGrad = ctx.createRadialGradient(CENTER, CENTER, 25, CENTER, CENTER, plateRadius);
+    plateGrad.addColorStop(0, '#B8C2D1'); // light highland regolith
+    plateGrad.addColorStop(0.35, '#A4AFBF');
+    plateGrad.addColorStop(0.70, '#8692A4');
+    plateGrad.addColorStop(0.92, '#5C6677');
+    plateGrad.addColorStop(1.0, '#1E232D');
 
     ctx.save();
     ctx.beginPath();
@@ -107,105 +108,168 @@ export const PolarStereographicMap: React.FC = () => {
     ctx.fillStyle = plateGrad;
     ctx.fill();
 
-    // 3. Subtle Regolith Micro-crater noise texture
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
-    for (let i = 0; i < 400; i++) {
-      const rx = CENTER + (Math.random() - 0.5) * plateRadius * 1.9;
-      const ry = CENTER + (Math.random() - 0.5) * plateRadius * 1.9;
-      const rr = Math.random() * 2.5 + 0.8;
-      ctx.beginPath();
-      ctx.arc(rx, ry, rr, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    // 3. Regolith Micro-Texture & Cratering Noise
+    const pseudoRandom = (seed: number) => {
+      const x = Math.sin(seed) * 10000;
+      return x - Math.floor(x);
+    };
 
-    // 4. Sun incident light angle
+    // Directional Sun lighting vector
     const sunAzRad = (currentSun.azimuthDeg * Math.PI) / 180.0;
     const sunDx = Math.sin(sunAzRad);
     const sunDy = -Math.cos(sunAzRad);
 
-    // 5. Draw Major South Pole Craters with Sun-directional Hillshading
+    // 4. Draw 65 Procedural Micro-Craters with Directional Hillshade
+    for (let i = 0; i < 65; i++) {
+      const rDist = pseudoRandom(i * 13.7) * (plateRadius - 30);
+      const theta = pseudoRandom(i * 29.3) * Math.PI * 2;
+      const mcX = CENTER + Math.cos(theta) * rDist;
+      const mcY = CENTER + Math.sin(theta) * rDist;
+      const mcR = 3.0 + pseudoRandom(i * 7.1) * 9.0;
+
+      // Crater bowl shadow
+      ctx.fillStyle = 'rgba(12, 16, 24, 0.75)';
+      ctx.beginPath();
+      ctx.arc(mcX, mcY, mcR, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Sunlit rim highlight
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(mcX - sunDx * 0.8, mcY - sunDy * 0.8, mcR, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // 5. Central Cryo-Indigo Permanently Shadowed Region (PSR) Basin
+    // Covers the low cold-trap basins around Shackleton, Shoemaker, Faustini, Haworth
+    const psrPoints = [
+      projectToSvg(-89.9, 0),
+      projectToSvg(-89.2, 80),
+      projectToSvg(-87.8, 55),
+      projectToSvg(-86.9, 75),
+      projectToSvg(-87.2, 120),
+      projectToSvg(-88.7, 145),
+      projectToSvg(-89.3, -30),
+      projectToSvg(-88.2, -60),
+      projectToSvg(-87.1, -10),
+      projectToSvg(-87.6, 20),
+    ];
+
+    ctx.save();
+    ctx.beginPath();
+    psrPoints.forEach((pt, idx) => {
+      if (idx === 0) ctx.moveTo(pt.svgX, pt.svgY);
+      else ctx.lineTo(pt.svgX, pt.svgY);
+    });
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(16, 32, 60, 0.78)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(40, 158, 142, 0.6)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+
+    // 6. Render Major South Pole Craters with Accurate LOLA Hillshading
     SOUTH_POLE_CRATERS.forEach((crater) => {
       const { svgX, svgY } = projectToSvg(crater.lat, crater.lon);
-      const rPx = Math.max(6, (crater.radiusKm / RHO_MAX_KM) * (CENTER - 28));
+      const rPx = Math.max(10, (crater.radiusKm / RHO_MAX_KM) * (CENTER - 28));
 
-      // A. Outer rim shadow on the leeward side
+      // A. Cast shadow onto leeward terrain
       const shadowGrad = ctx.createRadialGradient(
         svgX - sunDx * rPx * 0.4,
         svgY - sunDy * rPx * 0.4,
-        rPx * 0.7,
+        rPx * 0.5,
         svgX,
         svgY,
-        rPx * 1.45
+        rPx * 1.3
       );
-      shadowGrad.addColorStop(0, 'rgba(9, 10, 13, 0)');
-      shadowGrad.addColorStop(0.6, 'rgba(9, 10, 13, 0.75)');
-      shadowGrad.addColorStop(1, 'rgba(9, 10, 13, 0)');
+      shadowGrad.addColorStop(0, 'rgba(8, 11, 16, 0.9)');
+      shadowGrad.addColorStop(0.7, 'rgba(8, 11, 16, 0.6)');
+      shadowGrad.addColorStop(1, 'rgba(8, 11, 16, 0)');
       ctx.fillStyle = shadowGrad;
       ctx.beginPath();
-      ctx.arc(svgX, svgY, rPx * 1.4, 0, Math.PI * 2);
+      ctx.arc(svgX, svgY, rPx * 1.3, 0, Math.PI * 2);
       ctx.fill();
 
-      // B. Outer rim highlight on the sunward side
+      // B. Crater interior bowl
+      const bowlGrad = ctx.createRadialGradient(
+        svgX + sunDx * rPx * 0.3,
+        svgY + sunDy * rPx * 0.3,
+        rPx * 0.1,
+        svgX,
+        svgY,
+        rPx * 0.96
+      );
+      bowlGrad.addColorStop(0, crater.hasPsr ? '#0A121E' : '#11151F');
+      bowlGrad.addColorStop(0.65, crater.hasPsr ? '#101C30' : '#1C2230');
+      bowlGrad.addColorStop(1.0, '#384252');
+      ctx.fillStyle = bowlGrad;
+      ctx.beginPath();
+      ctx.arc(svgX, svgY, rPx * 0.96, 0, Math.PI * 2);
+      ctx.fill();
+
+      // C. Illuminated Sunward Rim Crest Highlight (Pure white/silver)
       const rimHighlight = ctx.createLinearGradient(
         svgX - sunDx * rPx,
         svgY - sunDy * rPx,
         svgX + sunDx * rPx,
         svgY + sunDy * rPx
       );
-      rimHighlight.addColorStop(0, 'rgba(236, 233, 226, 0.65)');
-      rimHighlight.addColorStop(0.35, 'rgba(180, 190, 205, 0.25)');
-      rimHighlight.addColorStop(0.7, 'rgba(20, 24, 32, 0)');
+      rimHighlight.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+      rimHighlight.addColorStop(0.35, 'rgba(215, 225, 240, 0.6)');
+      rimHighlight.addColorStop(0.75, 'rgba(30, 36, 48, 0)');
       ctx.strokeStyle = rimHighlight;
-      ctx.lineWidth = Math.max(1.8, rPx * 0.12);
+      ctx.lineWidth = Math.max(2.2, rPx * 0.12);
       ctx.beginPath();
       ctx.arc(svgX, svgY, rPx, 0, Math.PI * 2);
       ctx.stroke();
 
-      // C. Crater interior depression (dark bowl)
-      const bowlGrad = ctx.createRadialGradient(
-        svgX + sunDx * rPx * 0.35,
-        svgY + sunDy * rPx * 0.35,
-        rPx * 0.1,
-        svgX,
-        svgY,
-        rPx * 0.95
+      // D. Crater Shadowed Inner Wall
+      const shadowWall = ctx.createLinearGradient(
+        svgX + sunDx * rPx,
+        svgY + sunDy * rPx,
+        svgX - sunDx * rPx,
+        svgY - sunDy * rPx
       );
-      bowlGrad.addColorStop(0, '#07090C');
-      bowlGrad.addColorStop(0.55, '#0C0F16');
-      bowlGrad.addColorStop(0.85, '#222834');
-      bowlGrad.addColorStop(1.0, '#353D4C');
-      ctx.fillStyle = bowlGrad;
+      shadowWall.addColorStop(0, 'rgba(7, 9, 13, 0.88)');
+      shadowWall.addColorStop(0.45, 'rgba(7, 9, 13, 0.2)');
+      shadowWall.addColorStop(0.8, 'rgba(7, 9, 13, 0)');
+      ctx.strokeStyle = shadowWall;
+      ctx.lineWidth = Math.max(2.0, rPx * 0.14);
       ctx.beginPath();
-      ctx.arc(svgX, svgY, rPx * 0.95, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.arc(svgX, svgY, rPx * 0.92, 0, Math.PI * 2);
+      ctx.stroke();
 
-      // D. Cryo-Indigo Permanently Shadowed Region (PSR) cold trap floor
+      // E. Crater Floor PSR Outline
       if (crater.hasPsr) {
-        ctx.fillStyle = 'rgba(20, 29, 48, 0.85)';
+        ctx.fillStyle = 'rgba(18, 36, 68, 0.85)';
         ctx.beginPath();
-        ctx.arc(svgX + sunDx * rPx * 0.1, svgY + sunDy * rPx * 0.1, rPx * 0.65, 0, Math.PI * 2);
+        ctx.arc(svgX + sunDx * rPx * 0.15, svgY + sunDy * rPx * 0.15, rPx * 0.55, 0, Math.PI * 2);
         ctx.fill();
-        ctx.strokeStyle = 'rgba(40, 158, 142, 0.55)';
-        ctx.lineWidth = 0.8;
+        ctx.strokeStyle = 'rgba(40, 158, 142, 0.7)';
+        ctx.lineWidth = 0.9;
         ctx.setLineDash([2, 3]);
         ctx.stroke();
         ctx.setLineDash([]);
       }
     });
 
-    // 6. Massif Ridges (Malapert Massif & Mons Mouton high ground highlights)
+    // 7. Malapert Massif & Mons Mouton High Ridges
     const malapert = projectToSvg(-86.0, 0.0);
-    ctx.strokeStyle = 'rgba(247, 185, 85, 0.45)';
+    ctx.strokeStyle = 'rgba(247, 185, 85, 0.75)';
     ctx.lineWidth = 3.5;
     ctx.beginPath();
-    ctx.ellipse(malapert.svgX, malapert.svgY, 24, 10, -Math.PI / 6, 0, Math.PI * 2);
+    ctx.ellipse(malapert.svgX, malapert.svgY, 26, 11, -Math.PI / 5, 0, Math.PI * 2);
     ctx.stroke();
 
     const mouton = projectToSvg(-84.6, -30.0);
-    ctx.strokeStyle = 'rgba(236, 233, 226, 0.35)';
-    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = 'rgba(240, 245, 255, 0.65)';
+    ctx.lineWidth = 2.8;
     ctx.beginPath();
-    ctx.ellipse(mouton.svgX, mouton.svgY, 22, 14, Math.PI / 4, 0, Math.PI * 2);
+    ctx.ellipse(mouton.svgX, mouton.svgY, 24, 14, Math.PI / 4, 0, Math.PI * 2);
     ctx.stroke();
 
     ctx.restore();
@@ -266,10 +330,10 @@ export const PolarStereographicMap: React.FC = () => {
   const raycastRays = Array.from({ length: 120 }).map((_, idx) => {
     const az = idx * 3;
     const azRad = (az * Math.PI) / 180.0;
-    const maxLen = 175; // px outward radius
-    const horizonElev = currentProfile[az % currentProfile.length] ?? 2.5;
+    const maxLen = 175;
+    const horizonElev = currentProfile[az % (currentProfile.length || 1)] ?? 2.5;
     const isBlocked = horizonElev > 2.0;
-    const rayLen = isBlocked ? maxLen * 0.72 : maxLen;
+    const rayLen = isBlocked ? maxLen * 0.75 : maxLen;
 
     const x2 = activePos.svgX + Math.sin(azRad) * rayLen;
     const y2 = activePos.svgY - Math.cos(azRad) * rayLen;
@@ -284,16 +348,22 @@ export const PolarStereographicMap: React.FC = () => {
     };
   });
 
+  // Major Benchmark Non-Selected Sites to display neatly without clutter
+  const benchmarkSites = [
+    { name: 'Malapert Massif', lat: -86.0, lon: 0.0, subtitle: 'ACTIVE SITE | ARTIMIS' },
+    { name: 'Mons Mouton', lat: -84.6, lon: -30.0, subtitle: 'STATUS SITE | ARTIMIS' },
+    { name: 'Peak Near Shackleton', lat: -89.68, lon: 129.0, subtitle: 'HIGHWAY RIM' },
+  ];
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative', overflow: 'hidden' }}>
-      {/* 4 Corner Targeting Brackets */}
       <div className="corner-tr" />
       <div className="corner-bl" />
 
-      {/* Panel Top Header Strip */}
+      {/* Top Panel Header Strip */}
       <div className="bento-panel-header">
         <span>SOUTH POLE STEREOGRAPHIC MAP (80°S to 90°S)</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap' }}>
           <span className="badge-precomputed" style={{ fontSize: '0.58rem', padding: '0.1rem 0.4rem' }}>
             LOLA 80M DEM
           </span>
@@ -308,7 +378,7 @@ export const PolarStereographicMap: React.FC = () => {
         </div>
       </div>
 
-      {/* Optional Coordinate Injection Drawer */}
+      {/* Coordinate Injection Drawer */}
       {isCoordInputOpen && (
         <form
           onSubmit={handleApplyCoordinates}
@@ -322,6 +392,7 @@ export const PolarStereographicMap: React.FC = () => {
             fontFamily: 'var(--font-mono)',
             fontSize: '0.62rem',
             zIndex: 30,
+            whiteSpace: 'nowrap',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
@@ -400,17 +471,18 @@ export const PolarStereographicMap: React.FC = () => {
                   cy={CENTER}
                   r={radius}
                   fill="none"
-                  stroke={isPole ? 'var(--accent-solar)' : 'rgba(236, 233, 226, 0.22)'}
-                  strokeWidth={isPole ? 1.2 : 0.6}
+                  stroke={isPole ? 'var(--accent-solar)' : 'rgba(236, 233, 226, 0.28)'}
+                  strokeWidth={isPole ? 1.4 : 0.6}
                   strokeDasharray={isPole ? undefined : '3,4'}
                 />
                 {!isPole && (
                   <text
                     x={CENTER - radius + 4}
                     y={CENTER - 4}
-                    fill="var(--text-muted)"
+                    fill="var(--text-secondary)"
                     fontSize="7.5"
                     fontFamily="var(--font-mono)"
+                    fontWeight="bold"
                   >
                     {Math.abs(lat)}°S
                   </text>
@@ -434,8 +506,8 @@ export const PolarStereographicMap: React.FC = () => {
                   y1={CENTER}
                   x2={x2}
                   y2={y2}
-                  stroke={isPrime ? 'var(--accent-earth)' : 'rgba(74, 82, 100, 0.28)'}
-                  strokeWidth={isPrime ? 1.2 : 0.5}
+                  stroke={isPrime ? 'var(--accent-earth)' : 'rgba(74, 82, 100, 0.32)'}
+                  strokeWidth={isPrime ? 1.4 : 0.5}
                   strokeDasharray={isPrime ? undefined : '2,4'}
                 />
                 <text
@@ -462,13 +534,13 @@ export const PolarStereographicMap: React.FC = () => {
                 y1={ray.y1}
                 x2={ray.x2}
                 y2={ray.y2}
-                stroke={ray.isBlocked ? 'rgba(217, 70, 62, 0.45)' : 'rgba(76, 201, 184, 0.35)'}
-                strokeWidth={ray.isBlocked ? 0.7 : 0.5}
+                stroke={ray.isBlocked ? 'rgba(217, 70, 62, 0.55)' : 'rgba(247, 185, 85, 0.45)'}
+                strokeWidth={ray.isBlocked ? 0.75 : 0.55}
               />
             ))}
           </g>
 
-          {/* PSR Polygon Labels */}
+          {/* PSR Polygon Water-Ice Trap Labels */}
           {SOUTH_POLE_CRATERS.filter((c) => c.hasPsr).map((c) => {
             const p = projectToSvg(c.lat, c.lon);
             return (
@@ -476,8 +548,8 @@ export const PolarStereographicMap: React.FC = () => {
                 key={c.name}
                 x={p.svgX}
                 y={p.svgY + 2.5}
-                fill="rgba(76, 201, 184, 0.7)"
-                fontSize="6"
+                fill="rgba(76, 201, 184, 0.85)"
+                fontSize="6.5"
                 fontFamily="var(--font-mono)"
                 textAnchor="middle"
                 fontWeight="bold"
@@ -488,65 +560,63 @@ export const PolarStereographicMap: React.FC = () => {
             );
           })}
 
-          {/* Curated Landing Site Markers */}
-          {sitesRegistry.map((siteItem) => {
+          {/* Benchmark Site Markers (Non-Selected) */}
+          {benchmarkSites.map((siteItem) => {
             const { svgX, svgY } = projectToSvg(siteItem.lat, siteItem.lon);
-            const isSelected = selectedSiteId === siteItem.id && !customCoordinate;
-
             return (
               <g
-                key={siteItem.id}
+                key={siteItem.name}
                 transform={`translate(${svgX}, ${svgY})`}
                 style={{ cursor: 'pointer' }}
                 onClick={(e) => {
                   e.stopPropagation();
-                  setSelectedSiteId(siteItem.id);
+                  const match = sitesRegistry.find((s) => s.name.toLowerCase().includes(siteItem.name.toLowerCase().slice(0, 5)));
+                  if (match) setSelectedSiteId(match.id);
                 }}
               >
-                {/* Yellow site marker flag */}
-                <circle cx="0" cy="0" r="3.5" fill={isSelected ? 'var(--accent-solar-hi)' : '#E59A23'} stroke="#090A0D" strokeWidth="1" />
-                {!isSelected && (
-                  <g transform="translate(6, -2)">
-                    <rect x="0" y="-8" width={siteItem.name.length * 5.2 + 8} height="12" fill="rgba(17, 19, 24, 0.88)" stroke="#262A34" strokeWidth="0.8" rx="1" />
-                    <text x="4" y="0" fill="var(--text-primary)" fontSize="6.5" fontFamily="var(--font-mono)">
-                      {siteItem.name}
-                    </text>
-                  </g>
-                )}
+                <circle cx="0" cy="0" r="3.5" fill="#E59A23" stroke="#090A0D" strokeWidth="1.2" />
+                <g transform="translate(6, -3)">
+                  <rect x="0" y="-8" width={siteItem.name.length * 5.2 + 8} height="13" fill="rgba(17, 19, 24, 0.92)" stroke="#262A34" strokeWidth="0.8" rx="1" />
+                  <text x="4" y="0" fill="var(--text-primary)" fontSize="6" fontFamily="var(--font-mono)" fontWeight="bold">
+                    {siteItem.name}
+                  </text>
+                </g>
               </g>
             );
           })}
 
-          {/* Active Target Reticle (Concentric Avionics Rings) */}
+          {/* Active Target Reticle (Concentric Avionics Rings & Brackets) */}
           <g transform={`translate(${activePos.svgX}, ${activePos.svgY})`}>
-            {/* Outer rotating reticle */}
-            <circle cx="0" cy="0" r="22" fill="none" stroke="var(--accent-solar)" strokeWidth="1.2" strokeDasharray="6,4" />
-            <circle cx="0" cy="0" r="14" fill="none" stroke="var(--accent-earth-hi)" strokeWidth="1" strokeDasharray="3,3" />
-            <circle cx="0" cy="0" r="4" fill="none" stroke="var(--accent-solar-hi)" strokeWidth="1.5" />
-            <circle cx="0" cy="0" r="1.5" fill="var(--accent-solar-hi)" />
+            {/* Outer dotted ring */}
+            <circle cx="0" cy="0" r="24" fill="none" stroke="var(--accent-solar)" strokeWidth="1.4" strokeDasharray="6,4" />
+            {/* Inner cyan ring */}
+            <circle cx="0" cy="0" r="15" fill="none" stroke="var(--accent-earth-hi)" strokeWidth="1.2" strokeDasharray="3,3" />
+            {/* Center pip */}
+            <circle cx="0" cy="0" r="4.5" fill="none" stroke="var(--accent-solar-hi)" strokeWidth="1.5" />
+            <circle cx="0" cy="0" r="2" fill="var(--accent-solar-hi)" />
 
-            {/* Crosshair ticks */}
-            <line x1="-28" y1="0" x2="-22" y2="0" stroke="var(--accent-solar)" strokeWidth="1" />
-            <line x1="22" y1="0" x2="28" y2="0" stroke="var(--accent-solar)" strokeWidth="1" />
-            <line x1="0" y1="-28" x2="0" y2="-22" stroke="var(--accent-solar)" strokeWidth="1" />
-            <line x1="0" y1="22" x2="0" y2="28" stroke="var(--accent-solar)" strokeWidth="1" />
+            {/* Crosshair targeting ticks */}
+            <line x1="-30" y1="0" x2="-24" y2="0" stroke="var(--accent-solar)" strokeWidth="1.2" />
+            <line x1="24" y1="0" x2="30" y2="0" stroke="var(--accent-solar)" strokeWidth="1.2" />
+            <line x1="0" y1="-30" x2="0" y2="-24" stroke="var(--accent-solar)" strokeWidth="1.2" />
+            <line x1="0" y1="24" x2="0" y2="30" stroke="var(--accent-solar)" strokeWidth="1.2" />
 
-            {/* Selected Target Label Flag */}
-            <g transform="translate(18, -10)">
+            {/* Selected Target Label Flag Card */}
+            <g transform="translate(20, -12)">
               <rect
                 x="0"
                 y="-10"
-                width={125}
-                height="18"
-                fill="rgba(17, 19, 24, 0.94)"
+                width={130}
+                height="20"
+                fill="rgba(17, 19, 24, 0.95)"
                 stroke="var(--accent-solar)"
-                strokeWidth="1"
-                rx="1"
+                strokeWidth="1.2"
+                rx="2"
               />
-              <text x="6" y="-1" fill="var(--accent-solar-hi)" fontSize="7" fontFamily="var(--font-mono)" fontWeight="bold">
+              <text x="6" y="0" fill="var(--accent-solar-hi)" fontSize="7" fontFamily="var(--font-mono)" fontWeight="bold">
                 {selectedSite.name}
               </text>
-              <text x="6" y="6" fill="var(--text-secondary)" fontSize="5.5" fontFamily="var(--font-mono)">
+              <text x="6" y="7" fill="var(--text-secondary)" fontSize="5.5" fontFamily="var(--font-mono)">
                 ({activeCoord.lat.toFixed(2)}°, {activeCoord.lon.toFixed(2)}°)
               </text>
             </g>
@@ -556,7 +626,7 @@ export const PolarStereographicMap: React.FC = () => {
         {/* Top-Right Floating Glassmorphic Telemetry HUD Card */}
         <div className="floating-hud-card">
           <div className="floating-hud-title">
-            {selectedSite.name.toUpperCase().slice(0, 18)}
+            {selectedSite.name.toUpperCase().slice(0, 19)}
           </div>
           <div className="floating-hud-row">
             <span>COORDS:</span>
@@ -596,17 +666,16 @@ export const PolarStereographicMap: React.FC = () => {
             </button>
           </div>
           <div style={{ flex: 1, position: 'relative' }}>
-            <ThreeDLocalTerrain shadingMode={insetHazardMode} />
-            {/* Status overlay badges */}
+            <ThreeDLocalTerrain shadingMode={insetHazardMode} compact={true} />
             <div
               style={{
                 position: 'absolute',
                 bottom: '3px',
                 left: '4px',
                 fontFamily: 'var(--font-mono)',
-                fontSize: '0.52rem',
+                fontSize: '0.50rem',
                 color: 'var(--accent-solar-hi)',
-                backgroundColor: 'rgba(9, 10, 13, 0.8)',
+                backgroundColor: 'rgba(9, 10, 13, 0.85)',
                 padding: '1px 4px',
                 borderRadius: '1px',
                 pointerEvents: 'none',
@@ -622,7 +691,7 @@ export const PolarStereographicMap: React.FC = () => {
                 fontFamily: 'var(--font-mono)',
                 fontSize: '0.50rem',
                 color: 'var(--accent-earth-hi)',
-                backgroundColor: 'rgba(9, 10, 13, 0.8)',
+                backgroundColor: 'rgba(9, 10, 13, 0.85)',
                 padding: '1px 4px',
                 borderRadius: '1px',
                 pointerEvents: 'none',

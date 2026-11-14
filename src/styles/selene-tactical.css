@@ -283,10 +283,12 @@ body {
   align-items: center;
   gap: var(--space-xs);
   font-family: var(--font-mono);
-  font-size: 0.95rem;
+  font-size: 0.88rem;
   font-weight: 800;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .brand-callsign {
@@ -300,6 +302,7 @@ body {
 
 .brand-system {
   color: var(--text-primary);
+  white-space: nowrap;
 }
 
 .brand-version {
@@ -307,31 +310,35 @@ body {
   font-size: 0.62rem;
   font-weight: 500;
   margin-left: 2px;
+  white-space: nowrap;
 }
 
 /* Flight Engineer Persona Switcher — Reference UI Styling */
 .persona-toggle-bento {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   background-color: var(--bg-void);
   padding: 2px;
   border: 1px solid var(--border-hairline);
   border-radius: 2px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .persona-btn-active {
   background-color: var(--accent-solar);
   color: #090A0D;
   font-family: var(--font-mono);
-  font-size: 0.64rem;
+  font-size: 0.62rem;
   font-weight: 800;
-  letter-spacing: 0.08em;
-  padding: 0.28rem 0.65rem;
+  letter-spacing: 0.07em;
+  padding: 0.25rem 0.55rem;
   border: none;
   border-radius: 1px;
   cursor: pointer;
   text-transform: uppercase;
+  white-space: nowrap;
   transition: all var(--transition-fast);
 }
 
@@ -339,14 +346,15 @@ body {
   background-color: transparent;
   color: var(--text-secondary);
   font-family: var(--font-mono);
-  font-size: 0.64rem;
+  font-size: 0.62rem;
   font-weight: 600;
-  letter-spacing: 0.08em;
-  padding: 0.28rem 0.65rem;
+  letter-spacing: 0.07em;
+  padding: 0.25rem 0.55rem;
   border: none;
   border-radius: 1px;
   cursor: pointer;
   text-transform: uppercase;
+  white-space: nowrap;
   transition: all var(--transition-fast);
 }
 
@@ -359,62 +367,76 @@ body {
 .header-countdowns {
   display: flex;
   align-items: center;
-  gap: 1.2rem;
+  gap: 1.0rem;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .header-countdown-item {
   display: flex;
   align-items: baseline;
-  gap: 0.4rem;
+  gap: 0.35rem;
   font-family: var(--font-mono);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .header-countdown-label {
-  font-size: 0.60rem;
+  font-size: 0.58rem;
   color: var(--text-secondary);
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
+  white-space: nowrap;
+  line-height: 1;
 }
 
 .header-countdown-val-solar {
-  font-size: 1.15rem;
+  font-size: 1.05rem;
   font-weight: 800;
   color: var(--accent-solar-hi);
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  line-height: 1;
 }
 
 .header-countdown-val-earth {
-  font-size: 1.15rem;
+  font-size: 1.05rem;
   font-weight: 800;
   color: var(--accent-earth-hi);
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  line-height: 1;
 }
 
 /* Live Data Link LED Bar */
 .live-data-led-group {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.25rem 0.6rem;
+  gap: 0.45rem;
+  padding: 0.22rem 0.5rem;
   background-color: var(--bg-void);
   border: 1px solid var(--border-hairline);
   border-radius: 2px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .led-bar-graph {
   display: flex;
   gap: 2px;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .led-tick {
   width: 3px;
-  height: 10px;
+  height: 9px;
   border-radius: 1px;
   background-color: var(--border-hairline);
+  flex-shrink: 0;
 }
 
 .led-tick.active-teal {
@@ -429,10 +451,11 @@ body {
 
 .led-text {
   font-family: var(--font-mono);
-  font-size: 0.58rem;
+  font-size: 0.56rem;
   font-weight: 700;
   color: var(--accent-earth-hi);
-  letter-spacing: 0.08em;
+  letter-spacing: 0.07em;
+  white-space: nowrap;
 }
 
 /* Legacy layout fallback */
@@ -1299,44 +1322,46 @@ body {
 /* 6-Card Telemetry Strip */
 .telemetry-grid-6 {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(2, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 4px;
-  padding: 5px;
+  padding: 4px 6px;
   background-color: var(--bg-void);
   flex-shrink: 0;
-  height: 80px;
+  height: 44px;
+  box-sizing: border-box;
 }
 
 .telemetry-cell {
   background-color: var(--bg-surface-1);
   border: 1px solid var(--border-hairline);
   border-radius: 2px;
-  padding: 0.25rem 0.55rem;
+  padding: 0.15rem 0.4rem;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 1px;
+  overflow: hidden;
 }
 
 .telemetry-cell-label {
   font-family: var(--font-mono);
-  font-size: 0.56rem;
+  font-size: 0.52rem;
   color: var(--text-secondary);
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   white-space: nowrap;
+  line-height: 1.1;
 }
 
 .telemetry-cell-value {
   font-family: var(--font-mono);
-  font-size: 0.84rem;
+  font-size: 0.82rem;
   font-weight: 800;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  line-height: 1.2;
 }
 
 /* Stacked 28px Gantt Bars */

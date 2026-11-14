@@ -107,7 +107,7 @@ export const SynodicTimeline: React.FC = () => {
       <div className="corner-tr" />
       <div className="corner-bl" />
 
-      {/* Header */}
+      {/* Header Strip */}
       <div className="bento-panel-header">
         <span>708-HOUR LUNAR SYNODIC TIMELINE</span>
         <span style={{ fontSize: '0.60rem', color: 'var(--text-muted)' }}>
@@ -116,29 +116,24 @@ export const SynodicTimeline: React.FC = () => {
       </div>
 
       {/* Timeline Body */}
-      <div style={{ flex: 1, padding: '0.45rem 0.8rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-        {/* Date Headers Strip across 708 Hours */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontSize: '0.54rem', color: 'var(--text-secondary)' }}>
+      <div style={{ flex: 1, padding: '0.35rem 0.8rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        {/* Date Headers Strip across 708 Hours (5 cleanly spaced markers matching reference mockup) */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontFamily: 'var(--font-mono)', fontSize: '0.54rem', color: 'var(--text-secondary)', paddingBottom: '2px' }}>
           <span style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>Nov 2026</span>
-          <span>NOV 10 7:35 PKT</span>
-          <span>NOV 11 5:35 PKT</span>
-          <span>NOV 12 4:35 PKT</span>
-          <span>NOV 13 1:35 PKT</span>
+          <span>NOV 10 07:35 PKT</span>
           <span style={{ color: 'var(--accent-solar-hi)', fontWeight: 'bold' }}>NOV 14 11:55 PKT</span>
-          <span>NOV 15 1:35 PKT</span>
-          <span>NOV 16 9:15 PKT</span>
-          <span>NOV 17 1:55 PKT</span>
-          <span>NOV 18 1:35 PKT</span>
-          <span>NOV 19 1:35 PKT</span>
+          <span>NOV 18 13:35 PKT</span>
+          <span>NOV 22 15:35 PKT</span>
+          <span>NOV 26 17:35 PKT</span>
         </div>
 
-        {/* Stacked Gantt Strip 1: Solar Illumination Windows (28px height) */}
+        {/* Stacked Gantt Strip 1: Solar Illumination Windows (24px height) */}
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontSize: '0.56rem', marginBottom: '2px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontSize: '0.55rem', marginBottom: '2px' }}>
             <span style={{ color: 'var(--accent-solar-hi)', fontWeight: 'bold' }}>SOLAR ILLUMINATION WINDOWS</span>
             <span style={{ color: 'var(--text-muted)' }}>708H SYNODIC CYCLE</span>
           </div>
-          <div className="gantt-strip-stacked">
+          <div className="gantt-strip-stacked" style={{ height: '24px' }}>
             {timelineData.map((pt, idx) => {
               const isLit = pt.illuminationFraction > 0.05;
               return (
@@ -146,8 +141,8 @@ export const SynodicTimeline: React.FC = () => {
                   key={idx}
                   style={{
                     flex: 1,
-                    backgroundColor: isLit ? 'var(--accent-solar)' : '#140D0B',
-                    opacity: isLit ? Math.max(0.4, pt.illuminationFraction) : 0.85,
+                    backgroundColor: isLit ? 'var(--accent-solar)' : '#140E0A',
+                    opacity: isLit ? Math.max(0.45, pt.illuminationFraction) : 0.9,
                   }}
                   title={`T+${idx * 2}h: Sun El ${pt.sun.elevationDeg.toFixed(1)}° (${isLit ? 'Illuminated' : 'Crater Rim Shadow'})`}
                 />
@@ -162,20 +157,24 @@ export const SynodicTimeline: React.FC = () => {
                 bottom: 0,
                 width: '2px',
                 backgroundColor: '#FFFFFF',
-                boxShadow: '0 0 6px #FFFFFF',
+                boxShadow: '0 0 8px #FFFFFF',
                 pointerEvents: 'none',
+                zIndex: 10,
               }}
-            />
+            >
+              <div style={{ position: 'absolute', top: '-4px', left: '-3px', width: 0, height: 0, borderLeft: '4px solid transparent', borderRight: '4px solid transparent', borderTop: '4px solid #FFFFFF' }} />
+              <div style={{ position: 'absolute', bottom: '-4px', left: '-3px', width: 0, height: 0, borderLeft: '4px solid transparent', borderRight: '4px solid transparent', borderBottom: '4px solid #FFFFFF' }} />
+            </div>
           </div>
         </div>
 
-        {/* Stacked Gantt Strip 2: Direct-to-Earth (DTE) Visibility (28px height) */}
+        {/* Stacked Gantt Strip 2: Direct-to-Earth (DTE) Visibility (24px height) */}
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontSize: '0.56rem', marginBottom: '2px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontSize: '0.55rem', marginBottom: '2px' }}>
             <span style={{ color: 'var(--accent-earth-hi)', fontWeight: 'bold' }}>DIRECT-TO-EARTH (DTE) VISIBILITY</span>
             <span style={{ color: 'var(--text-muted)' }}>S-BAND COMM LINK</span>
           </div>
-          <div className="gantt-strip-stacked">
+          <div className="gantt-strip-stacked" style={{ height: '24px' }}>
             {timelineData.map((pt, idx) => {
               const hasDte = pt.isDTE;
               return (
@@ -183,8 +182,8 @@ export const SynodicTimeline: React.FC = () => {
                   key={idx}
                   style={{
                     flex: 1,
-                    backgroundColor: hasDte ? 'var(--accent-earth)' : '#0A1412',
-                    opacity: hasDte ? 0.9 : 0.8,
+                    backgroundColor: hasDte ? 'var(--accent-earth)' : '#0A1513',
+                    opacity: hasDte ? 0.95 : 0.85,
                   }}
                   title={`T+${idx * 2}h: Earth El ${pt.earth.elevationDeg.toFixed(1)}° (${hasDte ? 'Active LOS' : 'Terrain Occulted'})`}
                 />
@@ -199,14 +198,15 @@ export const SynodicTimeline: React.FC = () => {
                 bottom: 0,
                 width: '2px',
                 backgroundColor: '#FFFFFF',
-                boxShadow: '0 0 6px #FFFFFF',
+                boxShadow: '0 0 8px #FFFFFF',
                 pointerEvents: 'none',
+                zIndex: 10,
               }}
             />
           </div>
         </div>
 
-        {/* Scrubber slider track */}
+        {/* Scrubber Slider Track */}
         <div style={{ position: 'relative', width: '100%', margin: '2px 0' }}>
           <input
             type="range"
@@ -216,7 +216,12 @@ export const SynodicTimeline: React.FC = () => {
             value={playheadFraction}
             onChange={handleScrubberChange}
             className="range-tactical"
-            style={{ width: '100%', cursor: 'pointer', height: '4px' }}
+            style={{
+              width: '100%',
+              cursor: 'pointer',
+              height: '4px',
+              '--range-fill': `${playheadFraction * 100}%`,
+            } as React.CSSProperties}
           />
         </div>
 

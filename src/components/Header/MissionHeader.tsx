@@ -14,8 +14,8 @@ export const MissionHeader: React.FC<MissionHeaderProps> = ({ onOpenJplModal, on
 
   return (
     <header className="flight-deck-header">
-      {/* Brand & Persona Switcher */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1.2rem' }}>
+      {/* Left: Brand Callsign & Dual Persona Switcher */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', flexShrink: 0 }}>
         <div className="header-brand">
           <span className="brand-callsign">ALRAKIS</span>
           <span className="brand-separator">//</span>
@@ -41,7 +41,7 @@ export const MissionHeader: React.FC<MissionHeaderProps> = ({ onOpenJplModal, on
         </div>
       </div>
 
-      {/* Center-Right: Large Tabular Telemetry Countdowns */}
+      {/* Center: Large High-Contrast Tabular Countdowns */}
       <div className="header-countdowns">
         <div className="header-countdown-item">
           <span className="header-countdown-label">
@@ -62,8 +62,8 @@ export const MissionHeader: React.FC<MissionHeaderProps> = ({ onOpenJplModal, on
         </div>
       </div>
 
-      {/* Far Right: Status LED Strip & Tactical Action Buttons */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+      {/* Right: Live Data Link Indicator & Tactical Action Buttons */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
         {/* Animated Avionics LED Indicator */}
         <div className="live-data-led-group" title="Ephemeris synchronized to NASA JPL Horizons System API (coord@301)">
           <div className="led-bar-graph">
@@ -74,12 +74,12 @@ export const MissionHeader: React.FC<MissionHeaderProps> = ({ onOpenJplModal, on
             <span className="led-tick active-amber" />
             <span className="led-tick active-teal" />
           </div>
-          <span className="led-text">LIVE DATA LINK: OPTIMAL [JPL ENGINES]</span>
+          <span className="led-text">DATA LINK: OPTIMAL [JPL]</span>
         </div>
 
         <button
           className="btn-tactical-secondary"
-          style={{ padding: '0.38rem 0.75rem', fontSize: '0.66rem' }}
+          style={{ padding: '0.3rem 0.65rem', fontSize: '0.62rem', whiteSpace: 'nowrap' }}
           onClick={onOpenScenarioModal}
           title="Compare landing site alternatives and launch slip timeline deltas"
         >
@@ -88,7 +88,7 @@ export const MissionHeader: React.FC<MissionHeaderProps> = ({ onOpenJplModal, on
 
         <button
           className="btn-tactical-primary"
-          style={{ padding: '0.38rem 0.85rem', fontSize: '0.66rem' }}
+          style={{ padding: '0.3rem 0.75rem', fontSize: '0.62rem', whiteSpace: 'nowrap' }}
           onClick={onOpenJplModal}
           title="Verify topocentric ephemeris with NASA JPL Horizons API (coord@301)"
         >

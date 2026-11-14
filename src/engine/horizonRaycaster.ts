@@ -136,11 +136,5 @@ export function formatTacticalDuration(ms: number | null): string {
   const totalMinutes = Math.floor(ms / (1000 * 60));
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
-  const days = Math.floor(hours / 24);
-  const remainingHours = hours % 24;
-
-  if (days > 0) {
-    return `${days}d ${remainingHours}h ${minutes}m`;
-  }
-  return `${String(hours).padStart(2, '0')}h ${String(minutes).padStart(2, '0')}m`;
+  return `${hours}h ${String(minutes).padStart(2, '0')}m`;
 }

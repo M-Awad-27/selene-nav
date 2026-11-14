@@ -4,9 +4,10 @@ import { useMissionStore } from '../../store/missionStore';
 
 interface ThreeDLocalTerrainProps {
   shadingMode: 'realistic' | 'slope-hazard';
+  compact?: boolean;
 }
 
-export const ThreeDLocalTerrain: React.FC<ThreeDLocalTerrainProps> = ({ shadingMode }) => {
+export const ThreeDLocalTerrain: React.FC<ThreeDLocalTerrainProps> = ({ shadingMode, compact = false }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const selectedSiteId = useMissionStore((s) => s.selectedSiteId);
   const sitesRegistry = useMissionStore((s) => s.sitesRegistry);
@@ -334,44 +335,48 @@ export const ThreeDLocalTerrain: React.FC<ThreeDLocalTerrainProps> = ({ shadingM
       {/* Three.js canvas container */}
       <div ref={containerRef} style={{ width: '100%', height: '100%', cursor: isInteracting ? 'grabbing' : 'grab' }} />
 
-      {/* Orbit & Viewport HUD Overlay */}
-      <div
-        style={{
-          position: 'absolute',
-          top: '8px',
-          left: '10px',
-          backgroundColor: 'rgba(17, 19, 24, 0.88)',
-          border: '1px solid var(--border-hairline)',
-          borderLeft: '3px solid var(--accent-solar)',
-          padding: '0.35rem 0.65rem',
-          borderRadius: '2px',
-          fontFamily: 'var(--font-mono)',
-          fontSize: '0.62rem',
-          pointerEvents: 'none',
-          backdropFilter: 'blur(4px)',
-        }}
-      >
-        <div style={{ color: 'var(--text-primary)', fontWeight: 'bold' }}>
-          3D LOCAL TERRAIN PATCH (20×20 KM)
-        </div>
-        <div style={{ color: 'var(--text-secondary)', marginTop: '2px' }}>
-          Site: {site?.name} · Elev: {site?.elevationKm} km
-        </div>
-        <div style={{ color: 'var(--accent-solar-hi)', marginTop: '2px' }}>
-          Sun Vector: Az {currentSun.azimuthDeg.toFixed(1)}° | El {currentSun.elevationDeg.toFixed(1)}°
-        </div>
-      </div>
-
-      {/* Reset Camera Button */}
-      <div style={{ position: 'absolute', bottom: '8px', right: '10px', display: 'flex', gap: '0.3rem' }}>
-        <button
-          className="btn-tactical-secondary"
-          style={{ padding: '0.2rem 0.5rem', fontSize: '0.60rem' }}
-          onClick={handleResetCamera}
+      {/* Orbit & Viewport HUD Overlay (hidden in compact inset mode) */}
+      {!compact && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '8px',
+            left: '10px',
+            backgroundColor: 'rgba(17, 19, 24, 0.88)',
+            border: '1px solid var(--border-hairline)',
+            borderLeft: '3px solid var(--accent-solar)',
+            padding: '0.35rem 0.65rem',
+            borderRadius: '2px',
+            fontFamily: 'var(--font-mono)',
+            fontSize: '0.62rem',
+            pointerEvents: 'none',
+            backdropFilter: 'blur(4px)',
+          }}
         >
-          RESET 3D CAM
-        </button>
-      </div>
+          <div style={{ color: 'var(--text-primary)', fontWeight: 'bold' }}>
+            3D LOCAL TERRAIN PATCH (20×20 KM)
+          </div>
+          <div style={{ color: 'var(--text-secondary)', marginTop: '2px' }}>
+            Site: {site?.name} · Elev: {site?.elevationKm} km
+          </div>
+          <div style={{ color: 'var(--accent-solar-hi)', marginTop: '2px' }}>
+            Sun Vector: Az {currentSun.azimuthDeg.toFixed(1)}° | El {currentSun.elevationDeg.toFixed(1)}°
+          </div>
+        </div>
+      )}
+
+      {/* Reset Camera Button (hidden in compact inset mode) */}
+      {!compact && (
+        <div style={{ position: 'absolute', bottom: '8px', right: '10px', display: 'flex', gap: '0.3rem' }}>
+          <button
+            className="btn-tactical-secondary"
+            style={{ padding: '0.2rem 0.5rem', fontSize: '0.60rem' }}
+            onClick={handleResetCamera}
+          >
+            RESET 3D CAM
+          </button>
+        </div>
+      )}
     </div>
   );
 };

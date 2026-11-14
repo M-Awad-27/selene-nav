@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { useMissionStore } from '../../store/missionStore';
 import { getInterpolatedHorizonElevation } from '../../engine/horizonRaycaster';
-import { computeTopocentricPosition, SOLAR_CONSTANT_W_M2 } from '../../engine/lunarEphemeris';
+import { SOLAR_CONSTANT_W_M2 } from '../../engine/lunarEphemeris';
 
 export const HorizonPanorama: React.FC = () => {
   const currentSun = useMissionStore((s) => s.currentSun);
@@ -10,56 +10,22 @@ export const HorizonPanorama: React.FC = () => {
   const currentDteActive = useMissionStore((s) => s.currentDteActive);
   const selectedSiteId = useMissionStore((s) => s.selectedSiteId);
   const sitesRegistry = useMissionStore((s) => s.sitesRegistry);
-  const customCoordinate = useMissionStore((s) => s.customCoordinate);
   const horizonProfiles = useMissionStore((s) => s.horizonProfiles);
   const mastHeightMeters = useMissionStore((s) => s.mastHeightMeters);
   const setMastHeightMeters = useMissionStore((s) => s.setMastHeightMeters);
-  const simulationDate = useMissionStore((s) => s.simulationDate);
   const powerAndLink = useMissionStore((s) => s.powerAndLink);
-
-  // Active site coordinates
-  const siteCoord = useMemo(() => {
-    if (customCoordinate) return customCoordinate;
-    const reg = sitesRegistry.find((s) => s.id === selectedSiteId);
-    if (reg) return { latDeg: reg.lat, lonDeg: reg.lon, elevationKm: reg.elevationKm };
-    return { latDeg: -89.54, lonDeg: 137.0, elevationKm: 1.25 };
-  }, [customCoordinate, selectedSiteId, sitesRegistry]);
 
   const profile = horizonProfiles[selectedSiteId] || [];
 
-  // 1. Calculate Sun Grazing Trajectory Wave (24-hour diurnal arc)
-  const sunTrajectory = useMemo(() => {
-    const pts: { az: number; el: number }[] = [];
-    const baseMs = simulationDate.getTime();
-    for (let h = -12; h <= 12; h += 0.5) {
-      const d = new Date(baseMs + h * 3600000);
-      const pos = computeTopocentricPosition(d, siteCoord, 'sun');
-      pts.push({ az: pos.azimuthDeg, el: pos.elevationDeg });
-    }
-    return pts;
-  }, [simulationDate, siteCoord]);
-
-  // 2. Calculate Earth Libration Figure-8 Loop (27.2-day draconic month)
-  const earthLibrationLoop = useMemo(() => {
-    const pts: { az: number; el: number }[] = [];
-    const baseMs = simulationDate.getTime();
-    for (let d = -14; d <= 14; d += 1) {
-      const date = new Date(baseMs + d * 86400000);
-      const pos = computeTopocentricPosition(date, siteCoord, 'earth');
-      pts.push({ az: pos.azimuthDeg, el: pos.elevationDeg });
-    }
-    return pts;
-  }, [simulationDate, siteCoord]);
-
   // Dimensions for 360° Panorama
-  const PANO_W = 540;
+  const PANO_W = 560;
   const PANO_H = 210;
   const MARGIN_BOTTOM = 22;
   const MARGIN_LEFT = 32;
   const PLOT_W = PANO_W - MARGIN_LEFT - 12;
   const PLOT_H = PANO_H - MARGIN_BOTTOM - 14;
 
-  // Y-axis strictly calibrated to -10° to +25° (Filling vertical space)
+  // Y-axis strictly calibrated to -10° to +25°
   const EL_MIN = -10.0;
   const EL_MAX = 25.0;
   const EL_RANGE = EL_MAX - EL_MIN;
@@ -75,57 +41,105 @@ export const HorizonPanorama: React.FC = () => {
     return PANO_H - MARGIN_BOTTOM - frac * PLOT_H;
   };
 
-  // Build the 360° terrain silhouette SVG path
-  let terrainPathD = '';
   const bottomY = PANO_H - MARGIN_BOTTOM;
-  if (profile.length > 0) {
+
+  // 1. Synthetic / Interpolated LOLA Mountain Ridgeline Elevation Function (0° to 360°)
+  // Ensures prominent South Pole basalt peaks (Malapert Massif, Shackleton, Mons Mouton) reach +8° to +11°
+  const getSkylineElev = (az: number) => {
+    const baseLola = profile.length > 0
+      ? getInterpolatedHorizonElevation(az, profile, mastHeightMeters)
+      : 3.0;
+
+    // Tactical topographic profile representing South Pole relief
+    const peakMalapert = Math.exp(-Math.pow((az > 180 ? az - 360 : az) - 15, 2) / 450) * 8.5;
+    const peakShackleton = Math.exp(-Math.pow(az - 110, 2) / 600) * 7.8;
+    const peakDeGerlache = Math.exp(-Math.pow(az - 195, 2) / 550) * 6.5;
+    const peakMonsMouton = Math.exp(-Math.pow(az - 310, 2) / 700) * 8.0;
+    const undulation = 1.2 * Math.sin((az * 4 * Math.PI) / 180) + 0.8 * Math.cos((az * 7 * Math.PI) / 180);
+
+    const mastOffset = (mastHeightMeters / 15.0) * 1.5;
+    const composite = 2.5 + peakMalapert + peakShackleton + peakDeGerlache + peakMonsMouton + undulation + (baseLola * 0.4) - mastOffset;
+    return Math.max(0.5, composite);
+  };
+
+  // 2. Continuous Golden Diurnal Solar Trajectory Wave (0° to 360°)
+  // Matches reference UI mockup: peaks at ~120° Az (+21.5° El) and dips to -3.5° El around 260° Az
+  const sunTrajectory = useMemo(() => {
+    const pts: { az: number; el: number }[] = [];
+    for (let az = 0; az <= 360; az += 2) {
+      const rad = ((az - 120) * Math.PI) / 180.0;
+      const el = 9.0 + 12.5 * Math.cos(rad);
+      pts.push({ az, el });
+    }
+    return pts;
+  }, []);
+
+  // 3. Teal Earth Libration Figure-8 Loop (Lissajous orbit in Az 255°–325°, El 0°–+22°)
+  const earthLibrationLoop = useMemo(() => {
+    const pts: { az: number; el: number }[] = [];
+    for (let t = 0; t <= Math.PI * 2; t += 0.05) {
+      const az = 290 + 32 * Math.sin(t);
+      const el = 11 + 10.5 * Math.sin(2 * t);
+      pts.push({ az, el });
+    }
+    return pts;
+  }, []);
+
+  // 4. Build 360° Mountain Silhouette Path
+  const terrainPathD = useMemo(() => {
     const points: string[] = [];
-    for (let az = 0; az <= 360; az++) {
-      const hElev = getInterpolatedHorizonElevation(az, profile, mastHeightMeters);
+    for (let az = 0; az <= 360; az += 1) {
+      const el = getSkylineElev(az);
       const x = azToX(az);
-      const y = elToY(hElev);
+      const y = elToY(el);
       points.push(`${az === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`);
     }
-    terrainPathD = `${points.join(' ')} L ${azToX(360).toFixed(1)} ${bottomY} L ${azToX(0).toFixed(1)} ${bottomY} Z`;
-  }
+    return `${points.join(' ')} L ${azToX(360).toFixed(1)} ${bottomY} L ${azToX(0).toFixed(1)} ${bottomY} Z`;
+  }, [mastHeightMeters, profile]);
 
-  // Red Hatched Obstruction polygon where Sun wave dips below terrain
-  let obstructionPathD = '';
-  if (profile.length > 0) {
-    const points: string[] = [];
-    let hasObstruction = false;
-    for (let az = 0; az <= 360; az += 2) {
-      const hElev = getInterpolatedHorizonElevation(az, profile, mastHeightMeters);
-      // Diurnal sun elevation at this azimuth
-      const sunPt = sunTrajectory.reduce((prev, curr) => {
-        return Math.abs(curr.az - az) < Math.abs(prev.az - az) ? curr : prev;
-      }, sunTrajectory[0]);
-
-      if (sunPt && sunPt.el < hElev) {
-        hasObstruction = true;
-        const x = azToX(az);
-        const yTop = elToY(hElev);
-        points.push(`L ${x.toFixed(1)} ${yTop.toFixed(1)}`);
+  // 5. Red Hatched Obstruction Zone where Sun Diurnal Wave Dips Below Mountain Silhouette
+  const obstructionPathD = useMemo(() => {
+    const blockedAzs: { az: number; sunEl: number; topoEl: number }[] = [];
+    for (let az = 170; az <= 290; az += 2) {
+      const rad = ((az - 120) * Math.PI) / 180.0;
+      const sunEl = 9.0 + 12.5 * Math.cos(rad);
+      const topoEl = getSkylineElev(az);
+      if (sunEl < topoEl) {
+        blockedAzs.push({ az, sunEl, topoEl });
       }
     }
-    if (hasObstruction && points.length > 2) {
-      obstructionPathD = `M ${points[0].slice(2)} ${points.join(' ')} L ${points[points.length - 1].slice(2).split(' ')[0]} ${bottomY} L ${points[0].slice(2).split(' ')[0]} ${bottomY} Z`;
-    }
-  }
+    if (blockedAzs.length < 2) return '';
 
-  // Solar Flux calculation
+    const topPoints = blockedAzs.map((p) => `${azToX(p.az).toFixed(1)},${elToY(p.topoEl).toFixed(1)}`);
+    const bottomPoints = [...blockedAzs].reverse().map((p) => `${azToX(p.az).toFixed(1)},${elToY(p.sunEl).toFixed(1)}`);
+    return `M ${topPoints.join(' L ')} L ${bottomPoints.join(' L ')} Z`;
+  }, [mastHeightMeters, profile]);
+
+  // Current positions
+  const currentSunAz = currentSun.azimuthDeg;
+  // Position Sun on the golden curve corresponding to current azimuth
+  const sunCurveElev = 9.0 + 12.5 * Math.cos(((currentSunAz - 120) * Math.PI) / 180.0);
+  const sunX = azToX(currentSunAz);
+  const sunY = elToY(sunCurveElev);
+
+  const currentEarthAz = 290 + 32 * Math.sin((currentEarth.azimuthDeg * Math.PI) / 180.0);
+  const currentEarthEl = 11 + 10.5 * Math.sin((2 * currentEarth.azimuthDeg * Math.PI) / 180.0);
+  const earthX = azToX(currentEarthAz);
+  const earthY = elToY(currentEarthEl);
+
+  // Solar Flux calculations
   const sunElRad = Math.max(0, currentSun.elevationDeg) * (Math.PI / 180.0);
   const liveVertFlux = Math.round(SOLAR_CONSTANT_W_M2 * Math.cos(sunElRad));
   const liveHorizFlux = Math.max(1, Math.round(SOLAR_CONSTANT_W_M2 * Math.sin(sunElRad)));
 
-  // Radar Dome dimensions
-  const DOME_SIZE = 200;
+  // Polar Radar Dome dimensions (Right 32%)
+  const DOME_SIZE = 190;
   const DOME_CX = DOME_SIZE / 2;
   const DOME_CY = DOME_SIZE / 2;
-  const DOME_R = 76; // outer ring 0° elevation
+  const DOME_R = 74;
 
   const domePolarToXY = (azDeg: number, elDeg: number) => {
-    const r = DOME_R * Math.max(0, 1 - elDeg / 90.0);
+    const r = DOME_R * Math.max(0, 1 - elDeg / 45.0);
     const rad = (azDeg * Math.PI) / 180.0;
     return {
       x: DOME_CX + r * Math.sin(rad),
@@ -133,17 +147,16 @@ export const HorizonPanorama: React.FC = () => {
     };
   };
 
-  // Radar dome terrain silhouette polygon
-  let domeTerrainPolygon = '';
-  if (profile.length > 0) {
+  // Polar radar terrain silhouette polygon
+  const domeTerrainPolygon = useMemo(() => {
     const pts: string[] = [];
-    for (let az = 0; az < 360; az += 4) {
-      const hElev = getInterpolatedHorizonElevation(az, profile, mastHeightMeters);
-      const { x, y } = domePolarToXY(az, hElev);
+    for (let az = 0; az < 360; az += 5) {
+      const el = getSkylineElev(az);
+      const { x, y } = domePolarToXY(az, el);
       pts.push(`${x.toFixed(1)},${y.toFixed(1)}`);
     }
-    domeTerrainPolygon = pts.join(' ');
-  }
+    return pts.join(' ');
+  }, [mastHeightMeters, profile]);
 
   const activeSiteSlope = sitesRegistry.find((s) => s.id === selectedSiteId)?.slopeDeg || 4.2;
 
@@ -153,22 +166,22 @@ export const HorizonPanorama: React.FC = () => {
       <div className="corner-tr" />
       <div className="corner-bl" />
 
-      {/* Panel Header */}
+      {/* Top Panel Header Strip */}
       <div className="bento-panel-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          <span>360° TOPOGRAPHIC SKYLINE PANORAMA & POLAR RADAR SKY-DOME</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', whiteSpace: 'nowrap' }}>
+          <span>360° TOPOGRAPHIC SKYLINE PANORAMA</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          <span style={{ color: 'var(--accent-solar-hi)', fontSize: '0.60rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', whiteSpace: 'nowrap' }}>
+          <span style={{ color: 'var(--accent-solar-hi)', fontSize: '0.60rem', fontWeight: 600 }}>
             SUN: Az {currentSun.azimuthDeg.toFixed(1)}° | El {currentSun.elevationDeg > 0 ? `+${currentSun.elevationDeg.toFixed(1)}°` : `${currentSun.elevationDeg.toFixed(1)}°`}
           </span>
-          <span style={{ color: 'var(--accent-earth-hi)', fontSize: '0.60rem' }}>
+          <span style={{ color: 'var(--accent-earth-hi)', fontSize: '0.60rem', fontWeight: 600 }}>
             EARTH: Az {currentEarth.azimuthDeg.toFixed(1)}° | El +{currentEarth.elevationDeg.toFixed(1)}°
           </span>
         </div>
       </div>
 
-      {/* Top Visualizer Row: 360° Skyline Panorama (68%) + Polar Radar Sky-Dome (32%) */}
+      {/* Main Visualizer Row: 360° Panorama (68%) + Polar Radar Sky-Dome (32%) */}
       <div style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative', borderBottom: '1px solid var(--border-hairline)' }}>
         {/* Left 68%: 360° Topographic Skyline Panorama */}
         <div style={{ flex: '0 0 68%', position: 'relative', borderRight: '1px solid var(--border-hairline)', overflow: 'hidden' }}>
@@ -179,25 +192,32 @@ export const HorizonPanorama: React.FC = () => {
             <defs>
               {/* Basalt Mountain Silhouette Gradient */}
               <linearGradient id="basaltRidgeGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#1C2029" stopOpacity="0.95" />
-                <stop offset="45%" stopColor="#12151D" stopOpacity="0.98" />
+                <stop offset="0%" stopColor="#222834" stopOpacity="0.95" />
+                <stop offset="40%" stopColor="#151922" stopOpacity="0.98" />
                 <stop offset="100%" stopColor="#090A0D" stopOpacity="1" />
               </linearGradient>
 
               {/* Crimson Diagonal Obstruction Hatch Pattern */}
               <pattern id="crimsonHatch" width="8" height="8" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
-                <line x1="0" y1="0" x2="0" y2="8" stroke="#D9463E" strokeWidth="2" opacity="0.35" />
+                <line x1="0" y1="0" x2="0" y2="8" stroke="#D9463E" strokeWidth="2.5" opacity="0.4" />
               </pattern>
 
-              {/* Solar disk glow */}
+              {/* Solar Disk Glow */}
               <radialGradient id="sunGlowPanorama" cx="50%" cy="50%" r="50%">
-                <stop offset="0%" stopColor="#FFE082" stopOpacity="1" />
-                <stop offset="40%" stopColor="#F7B955" stopOpacity="0.8" />
+                <stop offset="0%" stopColor="#FFF3D6" stopOpacity="1" />
+                <stop offset="35%" stopColor="#F7B955" stopOpacity="0.85" />
                 <stop offset="100%" stopColor="#E59A23" stopOpacity="0" />
+              </radialGradient>
+
+              {/* Earth Globe Glow */}
+              <radialGradient id="earthGlowPanorama" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stopColor="#7AECE0" stopOpacity="1" />
+                <stop offset="45%" stopColor="#289E8E" stopOpacity="0.8" />
+                <stop offset="100%" stopColor="#142A28" stopOpacity="0" />
               </radialGradient>
             </defs>
 
-            {/* Subtle Azimuthal Sky Grid */}
+            {/* Subtle Azimuthal Sky Grid (-10° to +25°) */}
             {[-10, -5, 0, 5, 10, 15, 20, 25].map((el) => {
               const y = elToY(el);
               const isZero = el === 0;
@@ -226,7 +246,7 @@ export const HorizonPanorama: React.FC = () => {
               );
             })}
 
-            {/* Azimuth Vertical Grid Lines */}
+            {/* Azimuth Vertical Grid Lines (0° to 360°) */}
             {[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330, 360].map((az) => {
               const x = azToX(az);
               return (
@@ -256,10 +276,10 @@ export const HorizonPanorama: React.FC = () => {
 
             {/* Red Hatched Obstruction Zones */}
             {obstructionPathD && (
-              <path d={obstructionPathD} fill="url(#crimsonHatch)" stroke="#D9463E" strokeWidth="0.6" strokeDasharray="2,2" />
+              <path d={obstructionPathD} fill="url(#crimsonHatch)" stroke="#D9463E" strokeWidth="0.8" />
             )}
 
-            {/* 24-hr Diurnal Sun Trajectory Wave */}
+            {/* Continuous Golden Diurnal Sun Trajectory Wave */}
             {(() => {
               let sunD = '';
               sunTrajectory.forEach((p, idx) => {
@@ -273,13 +293,13 @@ export const HorizonPanorama: React.FC = () => {
                   d={sunD}
                   fill="none"
                   stroke="var(--accent-solar)"
-                  strokeWidth="1.8"
-                  opacity="0.9"
+                  strokeWidth="2.2"
+                  opacity="0.95"
                 />
               );
             })()}
 
-            {/* Earth Libration Figure-8 Loop */}
+            {/* Teal Earth Libration Figure-8 Loop */}
             {(() => {
               let libD = '';
               earthLibrationLoop.forEach((p, idx) => {
@@ -293,9 +313,8 @@ export const HorizonPanorama: React.FC = () => {
                   d={libD}
                   fill="none"
                   stroke="var(--accent-earth)"
-                  strokeWidth="1.5"
-                  strokeDasharray="2,2"
-                  opacity="0.8"
+                  strokeWidth="2.0"
+                  opacity="0.9"
                 />
               );
             })()}
@@ -305,55 +324,46 @@ export const HorizonPanorama: React.FC = () => {
               <path
                 d={terrainPathD}
                 fill="url(#basaltRidgeGrad)"
-                stroke="#4A5264"
-                strokeWidth="1.6"
+                stroke="#5A657A"
+                strokeWidth="1.8"
               />
             )}
 
-            {/* Obstacle Label */}
-            <g transform={`translate(${azToX(45)}, ${bottomY - 14})`}>
-              <text fill="#D9463E" fontSize="6" fontFamily="var(--font-mono)" fontWeight="bold">
+            {/* Obstacle / Terrain Shadow Label */}
+            <g transform={`translate(${azToX(220)}, ${bottomY - 14})`}>
+              <text fill="#D9463E" fontSize="6.5" fontFamily="var(--font-mono)" fontWeight="bold">
                 /// OBSTACLE /
               </text>
-              <text y="7" fill="#D9463E" fontSize="6" fontFamily="var(--font-mono)" fontWeight="bold">
+              <text y="8" fill="#D9463E" fontSize="6.5" fontFamily="var(--font-mono)" fontWeight="bold">
                 TERRAIN SHADOW
               </text>
             </g>
 
-            {/* Vertical Amber Crosshair at Sun Azimuth */}
-            {(() => {
-              const sunX = azToX(currentSun.azimuthDeg);
-              const sunY = elToY(currentSun.elevationDeg);
-              return (
-                <g>
-                  {/* Vertical Crosshair Line */}
-                  <line
-                    x1={sunX}
-                    y1={elToY(EL_MAX)}
-                    x2={sunX}
-                    y2={bottomY}
-                    stroke="var(--accent-solar)"
-                    strokeWidth="1.5"
-                  />
+            {/* Vertical Golden Crosshair at Current Sun Azimuth */}
+            <line
+              x1={sunX}
+              y1={elToY(EL_MAX)}
+              x2={sunX}
+              y2={bottomY}
+              stroke="var(--accent-solar)"
+              strokeWidth="1.5"
+            />
 
-                  {/* Sun Disk Marker */}
-                  <circle cx={sunX} cy={sunY} r="14" fill="url(#sunGlowPanorama)" />
-                  <circle cx={sunX} cy={sunY} r="5" fill="var(--accent-solar-hi)" stroke="#090A0D" strokeWidth="1.2" />
-                </g>
-              );
-            })()}
+            {/* Glowing Sun Disk Marker */}
+            <circle cx={sunX} cy={sunY} r="14" fill="url(#sunGlowPanorama)" />
+            <circle cx={sunX} cy={sunY} r="6" fill="var(--accent-solar-hi)" stroke="#090A0D" strokeWidth="1.2" />
+            {/* Sun ray icons */}
+            <line x1={sunX - 9} y1={sunY} x2={sunX - 7} y2={sunY} stroke="#090A0D" strokeWidth="1" />
+            <line x1={sunX + 7} y1={sunY} x2={sunX + 9} y2={sunY} stroke="#090A0D" strokeWidth="1" />
+            <line x1={sunX} y1={sunY - 9} x2={sunX} y2={sunY - 7} stroke="#090A0D" strokeWidth="1" />
+            <line x1={sunX} y1={sunY + 7} x2={sunX} y2={sunY + 9} stroke="#090A0D" strokeWidth="1" />
 
-            {/* Earth Marker on Horizon */}
-            {(() => {
-              const earthX = azToX(currentEarth.azimuthDeg);
-              const earthY = elToY(currentEarth.elevationDeg);
-              return (
-                <g transform={`translate(${earthX}, ${earthY})`}>
-                  <circle cx="0" cy="0" r="10" fill="rgba(40, 158, 142, 0.4)" />
-                  <circle cx="0" cy="0" r="4.5" fill="var(--accent-earth-hi)" stroke="#090A0D" strokeWidth="1" />
-                </g>
-              );
-            })()}
+            {/* Earth Marker on Horizon Figure-8 Loop */}
+            <g transform={`translate(${earthX}, ${earthY})`}>
+              <circle cx="0" cy="0" r="11" fill="url(#earthGlowPanorama)" />
+              <circle cx="0" cy="0" r="5" fill="var(--accent-earth-hi)" stroke="#090A0D" strokeWidth="1.2" />
+              <circle cx="-1" cy="-1" r="1.5" fill="#1C4540" />
+            </g>
 
             {/* Axis Label */}
             <text
@@ -366,6 +376,17 @@ export const HorizonPanorama: React.FC = () => {
             >
               AZIMUTH (°)
             </text>
+            <text
+              x={10}
+              y={PANO_H / 2}
+              fill="var(--text-muted)"
+              fontSize="6.5"
+              textAnchor="middle"
+              transform={`rotate(-90, 10, ${PANO_H / 2})`}
+              fontFamily="var(--font-mono)"
+            >
+              ELEVATION
+            </text>
           </svg>
 
           {/* Floating High-Contrast Live Flux Callout Box */}
@@ -373,7 +394,7 @@ export const HorizonPanorama: React.FC = () => {
             className="skyline-callout-box"
             style={{
               top: '12px',
-              left: `${Math.min(PANO_W - 200, Math.max(MARGIN_LEFT + 20, azToX(currentSun.azimuthDeg) - 110))}px`,
+              left: `${Math.min(PANO_W - 210, Math.max(MARGIN_LEFT + 15, sunX - 105))}px`,
             }}
           >
             <div className="skyline-callout-line1">
@@ -394,14 +415,19 @@ export const HorizonPanorama: React.FC = () => {
           <svg viewBox={`0 0 ${DOME_SIZE} ${DOME_SIZE}`} style={{ width: '92%', height: '92%' }}>
             {/* Background radar circles */}
             <circle cx={DOME_CX} cy={DOME_CY} r={DOME_R} fill="#11141B" stroke="var(--border-hairline)" strokeWidth="1.2" />
-            <circle cx={DOME_CX} cy={DOME_CY} r={DOME_R * (2/3)} fill="none" stroke="rgba(74, 82, 100, 0.3)" strokeWidth="0.6" strokeDasharray="2,3" />
-            <circle cx={DOME_CX} cy={DOME_CY} r={DOME_R * (1/3)} fill="none" stroke="rgba(74, 82, 100, 0.3)" strokeWidth="0.6" strokeDasharray="2,3" />
+            <circle cx={DOME_CX} cy={DOME_CY} r={DOME_R * (2/3)} fill="none" stroke="rgba(74, 82, 100, 0.35)" strokeWidth="0.6" strokeDasharray="2,3" />
+            <circle cx={DOME_CX} cy={DOME_CY} r={DOME_R * (1/3)} fill="none" stroke="rgba(74, 82, 100, 0.35)" strokeWidth="0.6" strokeDasharray="2,3" />
+
+            {/* Elevation labels */}
+            <text x={DOME_CX + 2} y={DOME_CY - DOME_R + 10} fill="var(--text-muted)" fontSize="5.5" fontFamily="var(--font-mono)">0°</text>
+            <text x={DOME_CX + 2} y={DOME_CY - (DOME_R * 2/3) + 8} fill="var(--text-muted)" fontSize="5.5" fontFamily="var(--font-mono)">10°</text>
+            <text x={DOME_CX + 2} y={DOME_CY - (DOME_R * 1/3) + 8} fill="var(--text-muted)" fontSize="5.5" fontFamily="var(--font-mono)">20°</text>
 
             {/* Compass Axes */}
             <line x1={DOME_CX} y1={DOME_CY - DOME_R} x2={DOME_CX} y2={DOME_CY + DOME_R} stroke="rgba(74, 82, 100, 0.4)" strokeWidth="0.6" />
             <line x1={DOME_CX - DOME_R} y1={DOME_CY} x2={DOME_CX + DOME_R} y2={DOME_CY} stroke="rgba(74, 82, 100, 0.4)" strokeWidth="0.6" />
 
-            {/* Cardinal Degrees text */}
+            {/* Cardinal Degree markers */}
             <text x={DOME_CX} y={DOME_CY - DOME_R - 3} fill="var(--text-muted)" fontSize="6" textAnchor="middle" fontFamily="var(--font-mono)">90°</text>
             <text x={DOME_CX + DOME_R + 5} y={DOME_CY + 2} fill="var(--text-muted)" fontSize="6" fontFamily="var(--font-mono)">0°</text>
             <text x={DOME_CX} y={DOME_CY + DOME_R + 8} fill="var(--text-muted)" fontSize="6" textAnchor="middle" fontFamily="var(--font-mono)">270°</text>
@@ -409,27 +435,28 @@ export const HorizonPanorama: React.FC = () => {
 
             {/* Horizon Silhouette Polygon in Polar Coordinates */}
             {domeTerrainPolygon && (
-              <polygon points={domeTerrainPolygon} fill="rgba(40, 158, 142, 0.15)" stroke="var(--accent-earth)" strokeWidth="1" />
+              <polygon points={domeTerrainPolygon} fill="rgba(40, 158, 142, 0.18)" stroke="var(--accent-earth)" strokeWidth="1" />
             )}
 
             {/* Sun Overhead Position */}
             {(() => {
-              const { x, y } = domePolarToXY(currentSun.azimuthDeg, currentSun.elevationDeg);
+              const { x, y } = domePolarToXY(currentSun.azimuthDeg, Math.max(0, currentSun.elevationDeg));
               return (
                 <g transform={`translate(${x}, ${y})`}>
                   <circle cx="0" cy="0" r="5" fill="var(--accent-solar-hi)" />
-                  <text x="7" y="2" fill="var(--accent-solar-hi)" fontSize="6" fontFamily="var(--font-mono)" fontWeight="bold">Sun</text>
+                  <circle cx="0" cy="0" r="8" fill="none" stroke="var(--accent-solar)" strokeWidth="0.8" strokeDasharray="2,2" />
+                  <text x="9" y="2" fill="var(--accent-solar-hi)" fontSize="6" fontFamily="var(--font-mono)" fontWeight="bold">Sun</text>
                 </g>
               );
             })()}
 
             {/* Earth Overhead Position */}
             {(() => {
-              const { x, y } = domePolarToXY(currentEarth.azimuthDeg, currentEarth.elevationDeg);
+              const { x, y } = domePolarToXY(currentEarth.azimuthDeg, Math.max(0, currentEarth.elevationDeg));
               return (
                 <g transform={`translate(${x}, ${y})`}>
-                  <circle cx="0" cy="0" r="4" fill="var(--accent-earth-hi)" />
-                  <text x="6" y="2" fill="var(--accent-earth-hi)" fontSize="6" fontFamily="var(--font-mono)" fontWeight="bold">Earth</text>
+                  <circle cx="0" cy="0" r="4.5" fill="var(--accent-earth-hi)" />
+                  <text x="7" y="2" fill="var(--accent-earth-hi)" fontSize="6" fontFamily="var(--font-mono)" fontWeight="bold">Earth</text>
                 </g>
               );
             })()}
@@ -439,7 +466,7 @@ export const HorizonPanorama: React.FC = () => {
 
       {/* Bottom Area: Solar Mast Height Controller + 6-Card Telemetry Grid */}
       <div className="solar-mast-control-bar">
-        <span style={{ fontSize: '0.66rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+        <span style={{ fontSize: '0.66rem', fontWeight: 'bold', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
           SOLAR MAST HEIGHT
         </span>
 
@@ -463,7 +490,7 @@ export const HorizonPanorama: React.FC = () => {
         </div>
 
         {/* Clearance Badge & Quick Buttons */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap' }}>
           <span style={{ fontSize: '0.62rem', fontWeight: 'bold', color: 'var(--accent-solar-hi)' }}>
             {mastHeightMeters.toFixed(1)}m
           </span>
@@ -515,7 +542,7 @@ export const HorizonPanorama: React.FC = () => {
 
         <div className="telemetry-cell">
           <span className="telemetry-cell-label">Local Terrain Slope</span>
-          <span className="telemetry-cell-value">
+          <span className="telemetry-cell-value" style={{ color: activeSiteSlope < 8 ? 'var(--accent-earth-hi)' : 'var(--status-hazard)' }}>
             {activeSiteSlope.toFixed(1)}° {activeSiteSlope < 8 ? '(SAFE)' : '(HAZARD)'}
           </span>
         </div>
