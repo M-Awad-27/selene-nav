@@ -3,9 +3,10 @@ import { useMissionStore } from '../../store/missionStore';
 
 interface MissionHeaderProps {
   onOpenJplModal: () => void;
+  onOpenScenarioModal: () => void;
 }
 
-export const MissionHeader: React.FC<MissionHeaderProps> = ({ onOpenJplModal }) => {
+export const MissionHeader: React.FC<MissionHeaderProps> = ({ onOpenJplModal, onOpenScenarioModal }) => {
   const persona = useMissionStore((s) => s.persona);
   const setPersona = useMissionStore((s) => s.setPersona);
   const sunsetCountdown = useMissionStore((s) => s.sunsetCountdown);
@@ -71,15 +72,26 @@ export const MissionHeader: React.FC<MissionHeaderProps> = ({ onOpenJplModal }) 
           </span>
         </div>
 
-        {/* JPL Horizons Live Verifier Button */}
-        <button
-          className="btn-tactical-primary"
-          style={{ padding: '0.45rem 0.85rem', fontSize: '0.70rem', marginLeft: '1rem' }}
-          onClick={onOpenJplModal}
-          title="Verify topocentric ephemeris with NASA JPL Horizons API (coord@301)"
-        >
-          VERIFY JPL API
-        </button>
+        {/* Mission Scenarios & JPL Verifier Buttons */}
+        <div style={{ display: 'flex', gap: '0.4rem', marginLeft: '1rem' }}>
+          <button
+            className="btn-tactical-secondary"
+            style={{ padding: '0.45rem 0.75rem', fontSize: '0.70rem' }}
+            onClick={onOpenScenarioModal}
+            title="Launch interactive Artemis & CLPS mission scenario walkthrough"
+          >
+            DEMO SCENARIOS
+          </button>
+
+          <button
+            className="btn-tactical-primary"
+            style={{ padding: '0.45rem 0.85rem', fontSize: '0.70rem' }}
+            onClick={onOpenJplModal}
+            title="Verify topocentric ephemeris with NASA JPL Horizons API (coord@301)"
+          >
+            VERIFY JPL API
+          </button>
+        </div>
       </div>
     </header>
   );

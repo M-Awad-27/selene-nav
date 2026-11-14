@@ -7,11 +7,13 @@ import { SynodicTimeline } from './components/Quadrant3/SynodicTimeline';
 import { ContingencyMatrix } from './components/Quadrant4/ContingencyMatrix';
 import { EducatorPanel } from './components/Educator/EducatorPanel';
 import { JplInspectorModal } from './components/Modals/JplInspectorModal';
+import { ScenarioWalkthroughModal } from './components/Modals/ScenarioWalkthroughModal';
 import { CURATED_LANDING_SITES } from './engine/lunarEphemeris';
 import './styles/selene-tactical.css';
 
 export function App() {
   const [isJplModalOpen, setIsJplModalOpen] = useState(false);
+  const [isScenarioModalOpen, setIsScenarioModalOpen] = useState(false);
   const persona = useMissionStore((s) => s.persona);
   const setSitesRegistry = useMissionStore((s) => s.setSitesRegistry);
   const setHorizonProfiles = useMissionStore((s) => s.setHorizonProfiles);
@@ -69,7 +71,10 @@ export function App() {
   return (
     <div className="app-shell">
       {/* ── Top Bar: Mission Control Header & Persona Switcher ── */}
-      <MissionHeader onOpenJplModal={() => setIsJplModalOpen(true)} />
+      <MissionHeader
+        onOpenJplModal={() => setIsJplModalOpen(true)}
+        onOpenScenarioModal={() => setIsScenarioModalOpen(true)}
+      />
 
       {/* ── Optional Educator Deck Ribbon when in Persona 02 ── */}
       {persona === 'educator' && <EducatorPanel />}
@@ -133,6 +138,12 @@ export function App() {
       <JplInspectorModal
         isOpen={isJplModalOpen}
         onClose={() => setIsJplModalOpen(false)}
+      />
+
+      {/* ── Interactive Scenario Walkthrough Modal ── */}
+      <ScenarioWalkthroughModal
+        isOpen={isScenarioModalOpen}
+        onClose={() => setIsScenarioModalOpen(false)}
       />
     </div>
   );

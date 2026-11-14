@@ -1,9 +1,23 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useMissionStore } from '../../store/missionStore';
+import { SOLAR_CONSTANT_W_M2 } from '../../engine/lunarEphemeris';
 
 export const EducatorPanel: React.FC = () => {
-  const powerAndLink = useMissionStore((s) => s.powerAndLink);
   const currentSun = useMissionStore((s) => s.currentSun);
+  const currentIlluminationFraction = useMissionStore((s) => s.currentIlluminationFraction);
+
+  // Interactive student / educator solar array simulator
+  const [panelAreaM2, setPanelAreaM2] = useState(2.5);
+  const [panelEfficiency, setPanelEfficiency] = useState(0.30); // 30% triple-junction GaAs
+
+  const elSunRad = Math.max(0, currentSun.elevationDeg) * (Math.PI / 180.0);
+  const f = Math.max(0, Math.min(1, currentIlluminationFraction));
+
+  const vertFlux = SOLAR_CONSTANT_W_M2 * f * Math.cos(elSunRad);
+  const horizFlux = SOLAR_CONSTANT_W_M2 * f * Math.sin(elSunRad);
+
+  const vertWatts = Math.round(vertFlux * panelEfficiency * panelAreaM2);
+  const horizWatts = Math.round(horizFlux * panelEfficiency * panelAreaM2);
 
   return (
     <div
@@ -18,10 +32,17 @@ export const EducatorPanel: React.FC = () => {
         gap: '1rem',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-        <span className="badge-live">EDUCATOR & PUBLIC EXPLORER DECK</span>
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.82rem', fontWeight: 'bold', color: 'var(--accent-solar-hi)' }}>
-          WHY IS THE MOON'S SOUTH POLE UNIQUE IN THE SOLAR SYSTEM?
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+          <span className="badge-live">EDUCATOR & PUBLIC EXPLORER DECK</span>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.82rem', fontWeight: 'bold', color: 'var(--accent-solar-hi)' }}>
+            WHY IS THE MOON'S SOUTH POLE UNIQUE IN THE SOLAR SYSTEM?
+          </span>
+        </div>
+
+        {/* Live Sun elevation pill */}
+        <span className="badge-precomputed">
+          CURRENT SUN ELEVATION: {currentSun.elevationDeg.toFixed(2)}°
         </span>
       </div>
 
@@ -40,7 +61,7 @@ export const EducatorPanel: React.FC = () => {
             1. THE 1.54° AXIAL TILT PHENOMENON
           </div>
           <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.4rem', lineHeight: 1.5 }}>
-            While Earth is tilted by <strong>23.5°</strong> (creating four distinct seasons), the Moon’s rotational axis is nearly perpendicular to the ecliptic plane at just <strong>1.54°</strong>.
+            While Earth is tilted by <strong>23.5°</strong> (creating seasons), the Moon’s rotational axis is nearly perpendicular to the ecliptic plane at just <strong>1.54°</strong>.
             Because of this, the Sun never climbs high into the polar sky—it skims continuously along the horizon (0° to 3.5° elevation), casting shadows tens of kilometers long across deep crater depressions.
           </div>
         </div>
@@ -63,7 +84,7 @@ export const EducatorPanel: React.FC = () => {
           </div>
         </div>
 
-        {/* Card 3: Vertical vs Horizontal Solar Arrays */}
+        {/* Card 3: Interactive Solar Array Simulator */}
         <div
           style={{
             backgroundColor: 'var(--bg-surface-2)',
@@ -74,17 +95,51 @@ export const EducatorPanel: React.FC = () => {
           }}
         >
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--accent-solar-hi)' }}>
-            3. VERTICAL VS. HORIZONTAL SOLAR ARRAYS
+            3. INTERACTIVE SOLAR ARRAY SIMULATOR
           </div>
-          <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.4rem', lineHeight: 1.5 }}>
-            At polar grazing angles (Sun elevation currently {currentSun.elevationDeg.toFixed(1)}°):
-            <div style={{ marginTop: '4px', fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
-              • Vertical Mast Power: <strong style={{ color: 'var(--accent-solar-hi)' }}>{powerAndLink.powerGeneratedVerticalWatts} W</strong> ({powerAndLink.verticalFluxWm2} W/m²)
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.4rem', lineHeight: 1.4 }}>
+            Test why vertical masts generate peak power at polar grazing sun angles:
+            <div style={{ display: 'flex', gap: '1rem', marginTop: '6px' }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: '0.62rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
+                  PANEL AREA: {panelAreaM2.toFixed(1)} m²
+                </label>
+                <input
+                  type="range"
+                  min="1.0"
+                  max="8.0"
+                  step="0.5"
+                  value={panelAreaM2}
+                  onChange={(e) => setPanelAreaM2(parseFloat(e.target.value))}
+                  className="range-tactical"
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: '0.62rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
+                  EFFICIENCY: {(panelEfficiency * 100).toFixed(0)}%
+                </label>
+                <input
+                  type="range"
+                  min="0.15"
+                  max="0.38"
+                  step="0.01"
+                  value={panelEfficiency}
+                  onChange={(e) => setPanelEfficiency(parseFloat(e.target.value))}
+                  className="range-tactical"
+                  style={{ width: '100%' }}
+                />
+              </div>
             </div>
-            <div style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
-              • Horizontal Deck Power: <strong style={{ color: 'var(--status-hazard)' }}>{powerAndLink.powerGeneratedHorizontalWatts} W</strong> ({powerAndLink.horizontalFluxWm2} W/m²)
+
+            <div style={{ marginTop: '8px', fontFamily: 'var(--font-mono)', fontSize: '0.70rem' }}>
+              <div>
+                • Vertical Tracking Mast: <strong style={{ color: 'var(--accent-solar-hi)' }}>{vertWatts} Watts</strong> ({Math.round(vertFlux)} W/m²)
+              </div>
+              <div>
+                • Horizontal Deck Panel: <strong style={{ color: 'var(--status-hazard)' }}>{horizWatts} Watts</strong> ({Math.round(horizFlux)} W/m²)
+              </div>
             </div>
-            This mathematical proof illustrates why vertical solar masts are mandatory for Artemis and CLPS landers!
           </div>
         </div>
 
@@ -102,7 +157,7 @@ export const EducatorPanel: React.FC = () => {
             4. EARTH LIBRATION & DIRECT COMMUNICATIONS
           </div>
           <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.4rem', lineHeight: 1.5 }}>
-            Because the Moon’s orbit is slightly tilted (5.14°) and elliptical, the Moon "wobbles" as seen from Earth by <strong>±6.68° in latitude</strong> and <strong>±7.90° in longitude</strong>.
+            Because the Moon’s orbit is slightly tilted (5.14°) and elliptical, the Moon "wobbles" by <strong>±6.68° in latitude</strong> and <strong>±7.90° in longitude</strong>.
             From the South Pole, Earth never rises or sets in a straight line—it traces a perpetual figure-8 loop in the northern sky. When it dips below a crater rim, direct radio communications are severed unless a relay satellite is available.
           </div>
         </div>
