@@ -60,11 +60,19 @@ export const PolarStereographicMap: React.FC = () => {
         elevationKm: customCoordinate.elevationKm,
         slopeDeg: 4.2,
       }
-    : sitesRegistry.find((s) => s.id === selectedSiteId) || sitesRegistry[0];
+    : (sitesRegistry.find((s) => s.id === selectedSiteId) || sitesRegistry[0] || {
+        id: 'shackleton-rim',
+        name: 'Shackleton Rim',
+        program: 'Artemis / South Pole',
+        lat: -89.54,
+        lon: 137.0,
+        elevationKm: 1.25,
+        slopeDeg: 4.2,
+      });
 
   const activeCoord = {
-    lat: selectedSite?.lat ?? -89.54,
-    lon: selectedSite?.lon ?? 137.0,
+    lat: selectedSite.lat,
+    lon: selectedSite.lon,
   };
 
   const activePos = projectToSvg(activeCoord.lat, activeCoord.lon);

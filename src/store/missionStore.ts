@@ -21,6 +21,7 @@ import {
   computeTopocentricPosition,
   computeIlluminationFraction,
   CelestialPosition,
+  CURATED_LANDING_SITES,
 } from '../engine/lunarEphemeris';
 import {
   getInterpolatedHorizonElevation,
@@ -144,7 +145,20 @@ export const useMissionStore = create<MissionState>((set, get) => ({
   setCompareSiteId: (siteId) => set({ compareSiteId: siteId }),
   setLaunchSlipDays: (days) => set({ launchSlipDays: days }),
 
-  sitesRegistry: [],
+  sitesRegistry: CURATED_LANDING_SITES.map((s, idx) => ({
+    id: s.name.toLowerCase().replace(/\s+/g, '-'),
+    name: s.name,
+    program: s.program,
+    category: s.program.includes('Artemis') ? 'artemis-polar' : 'historic-benchmark',
+    lat: s.coordinate.latDeg,
+    lon: s.coordinate.lonDeg,
+    elevationKm: s.coordinate.elevationKm,
+    slopeDeg: 4.2 + (idx % 4) * 1.5,
+    profile: s.operationalProfile,
+    targetHighlight: 'Curated lunar target',
+    nominalSunFraction: 0.75,
+    nominalDteFraction: 0.70,
+  })),
   horizonProfiles: {},
   setSitesRegistry: (sites) => {
     set({ sitesRegistry: sites });

@@ -36,7 +36,15 @@ export const ThreeDLocalTerrain: React.FC<ThreeDLocalTerrainProps> = ({ shadingM
     target: new THREE.Vector3(0, 0, 0),
   });
 
-  const site = sitesRegistry.find((s) => s.id === selectedSiteId) || sitesRegistry[0];
+  const site = sitesRegistry.find((s) => s.id === selectedSiteId) || sitesRegistry[0] || {
+    id: 'shackleton-rim',
+    name: 'Shackleton Rim',
+    program: 'Artemis / South Pole',
+    lat: -89.54,
+    lon: 137.0,
+    elevationKm: 1.25,
+    slopeDeg: 4.2,
+  };
 
   // Initialize Scene
   useEffect(() => {

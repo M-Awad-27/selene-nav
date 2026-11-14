@@ -16,9 +16,25 @@ export const ContingencyMatrix: React.FC = () => {
   const timelineStart = useMissionStore((s) => s.timelineStart);
 
   // Site A (Nominal)
-  const siteA = sitesRegistry.find((s) => s.id === selectedSiteId) || sitesRegistry[0];
+  const siteA = sitesRegistry.find((s) => s.id === selectedSiteId) || sitesRegistry[0] || {
+    id: 'shackleton-rim',
+    name: 'Shackleton Rim',
+    program: 'Artemis / South Pole',
+    lat: -89.54,
+    lon: 137.0,
+    elevationKm: 1.25,
+    slopeDeg: 4.2,
+  };
   // Site B (Contingency)
-  const siteB = sitesRegistry.find((s) => s.id === compareSiteId) || sitesRegistry[1] || siteA;
+  const siteB = sitesRegistry.find((s) => s.id === compareSiteId) || sitesRegistry[1] || {
+    id: 'malapert-massif',
+    name: 'Malapert Massif',
+    program: 'Artemis / Connecting Ridge',
+    lat: -86.0,
+    lon: 0.0,
+    elevationKm: 5.0,
+    slopeDeg: 6.5,
+  };
 
   // Profiles
   const profileA = horizonProfiles[siteA?.id || ''] || [];
