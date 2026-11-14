@@ -160,6 +160,9 @@ export const HorizonPanorama: React.FC = () => {
 
   const activeSiteSlope = sitesRegistry.find((s) => s.id === selectedSiteId)?.slopeDeg || 4.2;
 
+  const formatSignedDeg = (val: number, decimals: number = 2) =>
+    `${val >= 0 ? '+' : ''}${val.toFixed(decimals)}°`;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative', overflow: 'hidden' }}>
       {/* 4 Corner Targeting Brackets */}
@@ -173,10 +176,10 @@ export const HorizonPanorama: React.FC = () => {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', whiteSpace: 'nowrap' }}>
           <span style={{ color: 'var(--accent-solar-hi)', fontSize: '0.60rem', fontWeight: 600 }}>
-            SUN: Az {currentSun.azimuthDeg.toFixed(1)}° | El {currentSun.elevationDeg > 0 ? `+${currentSun.elevationDeg.toFixed(1)}°` : `${currentSun.elevationDeg.toFixed(1)}°`}
+            SUN: Az {currentSun.azimuthDeg.toFixed(1)}° | El {formatSignedDeg(currentSun.elevationDeg, 1)}
           </span>
           <span style={{ color: 'var(--accent-earth-hi)', fontSize: '0.60rem', fontWeight: 600 }}>
-            EARTH: Az {currentEarth.azimuthDeg.toFixed(1)}° | El +{currentEarth.elevationDeg.toFixed(1)}°
+            EARTH: Az {currentEarth.azimuthDeg.toFixed(1)}° | El {formatSignedDeg(currentEarth.elevationDeg, 1)}
           </span>
         </div>
       </div>
@@ -550,14 +553,14 @@ export const HorizonPanorama: React.FC = () => {
         <div className="telemetry-cell">
           <span className="telemetry-cell-label">Sun Elevation</span>
           <span className="telemetry-cell-value" style={{ color: currentSun.elevationDeg > 0 ? 'var(--accent-solar-hi)' : 'var(--status-hazard)' }}>
-            {currentSun.elevationDeg > 0 ? `+${currentSun.elevationDeg.toFixed(2)}°` : `${currentSun.elevationDeg.toFixed(2)}°`}
+            {formatSignedDeg(currentSun.elevationDeg, 2)}
           </span>
         </div>
 
         <div className="telemetry-cell">
           <span className="telemetry-cell-label">Earth Elevation</span>
-          <span className="telemetry-cell-value" style={{ color: 'var(--accent-earth-hi)' }}>
-            +{currentEarth.elevationDeg.toFixed(2)}°
+          <span className="telemetry-cell-value" style={{ color: currentEarth.elevationDeg > 0 ? 'var(--accent-earth-hi)' : 'var(--status-hazard)' }}>
+            {formatSignedDeg(currentEarth.elevationDeg, 2)}
           </span>
         </div>
 

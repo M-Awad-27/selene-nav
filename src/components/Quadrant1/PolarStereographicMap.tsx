@@ -16,7 +16,7 @@ const MAJOR_SOUTH_POLE_CRATERS = [
   { name: 'Peak Near Shackleton', lat: -89.68, lon: 129.0, radiusKm: 13.0, hasPsr: false, hasPeak: false },
 ];
 
-// Deterministic Pseudo-Random Generator for 85 Secondary Craters
+// Deterministic Pseudo-Random Generator for Secondary Craters
 function createSecondaryCraters() {
   const craters: { lat: number; lon: number; radiusKm: number }[] = [];
   let seed = 42;
@@ -25,10 +25,10 @@ function createSecondaryCraters() {
     return seed / 233280;
   };
 
-  for (let i = 0; i < 88; i++) {
+  for (let i = 0; i < 75; i++) {
     const lat = -80.0 - rnd() * 9.5;
     const lon = rnd() * 360.0 - 180.0;
-    const radiusKm = 4.0 + rnd() * 14.0;
+    const radiusKm = 4.0 + rnd() * 12.0;
     craters.push({ lat, lon, radiusKm });
   }
   return craters;
@@ -97,6 +97,9 @@ export const PolarStereographicMap: React.FC = () => {
 
   const activePos = projectToSvg(activeCoord.lat, activeCoord.lon);
 
+  const formatSignedDeg = (val: number, decimals: number = 2) =>
+    `${val >= 0 ? '+' : ''}${val.toFixed(decimals)}°`;
+
   // 1. Generate Gritty High-Contrast Regolith Albedo & Hillshade Texture Buffer (Offscreen)
   useEffect(() => {
     const size = VIEWBOX_SIZE;
@@ -106,23 +109,19 @@ export const PolarStereographicMap: React.FC = () => {
     const octx = offscreen.getContext('2d');
     if (!octx) return;
 
-    // A. Deep Void Background
+    // Void background
     octx.fillStyle = '#090A0D';
     octx.fillRect(0, 0, size, size);
 
     const plateRadius = CENTER - 26;
-
-    // B. Pixel-Level Regolith Albedo & Hillshade Texture Generator
-    // Multi-octave pseudo-fractal noise with directional hillshading from Azimuth 135°
     const imgData = octx.createImageData(size, size);
     const data = imgData.data;
 
-    // Directional light vector from Azimuth 135° (top-right to bottom-left)
+    // Directional light vector from Azimuth 135°
     const sunAngle = (135.0 * Math.PI) / 180.0;
-    const lx = Math.sin(sunAngle); // ~0.707
-    const ly = -Math.cos(sunAngle); // ~0.707
+    const lx = Math.sin(sunAngle);
+    const ly = -Math.cos(sunAngle);
 
-    // Fast deterministic 2D noise generator
     const hash = (x: number, y: number) => {
       const n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
       return n - Math.floor(n);
@@ -160,23 +159,18 @@ export const PolarStereographicMap: React.FC = () => {
         const dist = Math.sqrt(dx * dx + dy * dy);
 
         if (dist <= plateRadius) {
-          // Normalize coordinates
           const nx = dx / plateRadius;
           const ny = dy / plateRadius;
 
-          // Heightfield: macro-depression at pole + mountain massifs + multi-octave regolith roughness
           const scale = 7.5;
           const h = fbm(nx * scale + 10, ny * scale + 10);
           const hR = fbm((nx + 0.015) * scale + 10, ny * scale + 10);
           const hU = fbm(nx * scale + 10, (ny + 0.015) * scale + 10);
 
-          // Hillshade gradient
           const dhdx = (hR - h) / 0.015;
           const dhdy = (hU - h) / 0.015;
           const hillshade = 0.5 + 0.45 * (dhdx * lx + dhdy * ly);
 
-          // Lunar Basalt & Anorthosite Regolith Palette (#1E222A to #6E7582)
-          // Gritty dark-grey/silver basalt
           const normDist = dist / plateRadius;
           const limbDarkening = 1.0 - Math.pow(normDist, 3.5) * 0.45;
           const intensity = Math.max(0.12, Math.min(0.92, (0.28 + h * 0.42 + hillshade * 0.38) * limbDarkening));
@@ -185,7 +179,6 @@ export const PolarStereographicMap: React.FC = () => {
           const g = Math.floor(34 + intensity * 83);
           const b = Math.floor(42 + intensity * 88);
 
-          // Write 2x2 pixel block for crisp resolution and high performance
           for (let oy = 0; oy < 2; oy++) {
             for (let ox = 0; ox < 2; ox++) {
               const idx = ((py + oy) * size + (px + ox)) * 4;
@@ -203,7 +196,7 @@ export const PolarStereographicMap: React.FC = () => {
     offscreenCanvasRef.current = offscreen;
   }, []);
 
-  // 2. Draw Realistic LOLA Craters, Shadow Crescents, PSRs and Massifs onto Canvas
+  // 2. Draw Organic Craters Blended into Lunar Regolith (No cartoon arc strokes)
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -229,37 +222,32 @@ export const PolarStereographicMap: React.FC = () => {
     ctx.arc(CENTER, CENTER, plateRadius, 0, Math.PI * 2);
     ctx.clip();
 
-    // Fixed Sun Direction Vector: Azimuth 135° (standard LOLA hillshading convention)
     const sunAzRad = (135.0 * Math.PI) / 180.0;
-    const sunDx = Math.sin(sunAzRad); // ~0.707
-    const sunDy = -Math.cos(sunAzRad); // ~0.707
 
-    // A. Draw 85 Secondary Craters (Flat floor #161920, sunlit rim #9BA3B0, shadow crescent #090A0D)
+    // A. Draw Secondary Craters with Soft Organic Radial Fading
     SECONDARY_CRATERS.forEach((sc) => {
       const { svgX, svgY } = projectToSvg(sc.lat, sc.lon);
-      const rPx = Math.max(3.5, (sc.radiusKm / RHO_MAX_KM) * (CENTER - 28));
+      const rPx = Math.max(3.0, (sc.radiusKm / RHO_MAX_KM) * (CENTER - 28));
 
-      // Crater floor
-      ctx.fillStyle = '#161920';
+      // Soft depression radial gradient fading naturally into terrain
+      const depGrad = ctx.createRadialGradient(svgX, svgY, rPx * 0.1, svgX, svgY, rPx);
+      depGrad.addColorStop(0, 'rgba(8, 10, 14, 0.65)');
+      depGrad.addColorStop(0.7, 'rgba(8, 10, 14, 0.35)');
+      depGrad.addColorStop(1, 'rgba(8, 10, 14, 0)');
+      ctx.fillStyle = depGrad;
       ctx.beginPath();
       ctx.arc(svgX, svgY, rPx, 0, Math.PI * 2);
       ctx.fill();
 
-      // Leeward dark shadow crescent (#090A0D)
-      ctx.fillStyle = '#090A0D';
+      // Subtle 1px rim highlight on the sunward side
+      ctx.strokeStyle = 'rgba(210, 218, 230, 0.25)';
+      ctx.lineWidth = 0.8;
       ctx.beginPath();
-      ctx.arc(svgX - sunDx * rPx * 0.25, svgY - sunDy * rPx * 0.25, rPx * 0.85, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Sunlit outer rim highlight (#9BA3B0)
-      ctx.strokeStyle = '#9BA3B0';
-      ctx.lineWidth = Math.max(1.0, rPx * 0.22);
-      ctx.beginPath();
-      ctx.arc(svgX + sunDx * rPx * 0.1, svgY + sunDy * rPx * 0.1, rPx, sunAzRad - Math.PI * 0.45, sunAzRad + Math.PI * 0.45);
+      ctx.arc(svgX, svgY, rPx, sunAzRad - Math.PI * 0.4, sunAzRad + Math.PI * 0.4);
       ctx.stroke();
     });
 
-    // B. Draw Cryo-Indigo Permanently Shadowed Region (PSR) Central Basin
+    // B. Draw Cryo-Indigo Permanently Shadowed Region (PSR) Central Basin Contour
     const psrBasinCoords = [
       projectToSvg(-89.9, 0),
       projectToSvg(-89.3, 70),
@@ -280,120 +268,77 @@ export const PolarStereographicMap: React.FC = () => {
       else ctx.lineTo(pt.svgX, pt.svgY);
     });
     ctx.closePath();
-    ctx.fillStyle = 'rgba(20, 42, 78, 0.72)';
+    ctx.fillStyle = 'rgba(20, 42, 78, 0.45)';
     ctx.fill();
-    ctx.strokeStyle = '#289E8E';
-    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = 'rgba(40, 158, 142, 0.55)';
+    ctx.lineWidth = 1.0;
     ctx.setLineDash([3, 3]);
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.restore();
 
-    // C. Draw Major South Pole Craters with Full Realistic Morphology
+    // C. Draw Major South Pole Craters with Soft Organic Blending
     MAJOR_SOUTH_POLE_CRATERS.forEach((crater) => {
       const { svgX, svgY } = projectToSvg(crater.lat, crater.lon);
       const rPx = Math.max(12, (crater.radiusKm / RHO_MAX_KM) * (CENTER - 28));
 
-      // 1. Crater outer cast shadow on leeward ground
-      const castShadowGrad = ctx.createRadialGradient(
-        svgX - sunDx * rPx * 0.5,
-        svgY - sunDy * rPx * 0.5,
-        rPx * 0.6,
-        svgX,
-        svgY,
-        rPx * 1.45
-      );
-      castShadowGrad.addColorStop(0, 'rgba(9, 10, 13, 0.85)');
-      castShadowGrad.addColorStop(0.65, 'rgba(9, 10, 13, 0.45)');
-      castShadowGrad.addColorStop(1, 'rgba(9, 10, 13, 0)');
-      ctx.fillStyle = castShadowGrad;
+      // 1. Soft radial gradient for the crater depression (floor fading to transparent at rim)
+      const depGrad = ctx.createRadialGradient(svgX, svgY, rPx * 0.1, svgX, svgY, rPx);
+      depGrad.addColorStop(0, 'rgba(8, 10, 14, 0.75)');
+      depGrad.addColorStop(0.65, 'rgba(8, 10, 14, 0.45)');
+      depGrad.addColorStop(1, 'rgba(8, 10, 14, 0)');
+      ctx.fillStyle = depGrad;
       ctx.beginPath();
-      ctx.arc(svgX, svgY, rPx * 1.45, 0, Math.PI * 2);
+      ctx.arc(svgX, svgY, rPx, 0, Math.PI * 2);
       ctx.fill();
 
-      // 2. Textured Flat Crater Floor (#161920)
-      ctx.fillStyle = '#161920';
+      // 2. Subtle, thin 1px rim highlight on sunlit side
+      ctx.strokeStyle = 'rgba(210, 218, 230, 0.35)';
+      ctx.lineWidth = 1.0;
       ctx.beginPath();
-      ctx.arc(svgX, svgY, rPx * 0.95, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.arc(svgX, svgY, rPx, sunAzRad - Math.PI * 0.42, sunAzRad + Math.PI * 0.42);
+      ctx.stroke();
 
-      // 3. Steep Dark Inner Shadow Crescent on Opposite Wall (#090A0D)
-      ctx.fillStyle = '#090A0D';
-      ctx.beginPath();
-      ctx.arc(svgX - sunDx * rPx * 0.32, svgY - sunDy * rPx * 0.32, rPx * 0.82, 0, Math.PI * 2);
-      ctx.fill();
-
-      // 4. Cryo-Indigo Permanently Shadowed Region Floor (if applicable)
+      // 3. Subtle 1px dashed cyan-teal contour for PSR boundary with rgba(20, 42, 78, 0.45) fill
       if (crater.hasPsr) {
-        ctx.fillStyle = 'rgba(20, 42, 78, 0.72)';
+        ctx.fillStyle = 'rgba(20, 42, 78, 0.45)';
         ctx.beginPath();
-        ctx.arc(svgX - sunDx * rPx * 0.15, svgY - sunDy * rPx * 0.15, rPx * 0.55, 0, Math.PI * 2);
+        ctx.arc(svgX, svgY, rPx * 0.58, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.strokeStyle = '#289E8E';
+        ctx.strokeStyle = 'rgba(40, 158, 142, 0.55)';
         ctx.lineWidth = 1.0;
         ctx.setLineDash([3, 3]);
         ctx.stroke();
         ctx.setLineDash([]);
       }
 
-      // 5. Central Mountain Peak (if applicable)
+      // 4. Subtle central peak if applicable
       if (crater.hasPeak) {
-        ctx.fillStyle = '#090A0D';
+        ctx.fillStyle = 'rgba(210, 218, 230, 0.45)';
         ctx.beginPath();
-        ctx.arc(svgX - 1.5, svgY - 1.5, Math.max(2, rPx * 0.12), 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.fillStyle = '#9BA3B0';
-        ctx.beginPath();
-        ctx.arc(svgX + 1, svgY + 1, Math.max(1.8, rPx * 0.1), 0, Math.PI * 2);
+        ctx.arc(svgX + 0.8, svgY + 0.8, Math.max(1.5, rPx * 0.08), 0, Math.PI * 2);
         ctx.fill();
       }
-
-      // 6. Bright Sunlit Outer Rim Wall on Sunward Side (#9BA3B0)
-      ctx.strokeStyle = '#9BA3B0';
-      ctx.lineWidth = Math.max(2.2, rPx * 0.15);
-      ctx.beginPath();
-      ctx.arc(
-        svgX + sunDx * rPx * 0.08,
-        svgY + sunDy * rPx * 0.08,
-        rPx,
-        sunAzRad - Math.PI * 0.52,
-        sunAzRad + Math.PI * 0.52
-      );
-      ctx.stroke();
-
-      // Highlight peak on the rim crest
-      ctx.strokeStyle = '#CCD5E2';
-      ctx.lineWidth = Math.max(1.0, rPx * 0.07);
-      ctx.beginPath();
-      ctx.arc(
-        svgX + sunDx * rPx * 0.08,
-        svgY + sunDy * rPx * 0.08,
-        rPx,
-        sunAzRad - Math.PI * 0.25,
-        sunAzRad + Math.PI * 0.25
-      );
-      ctx.stroke();
     });
 
-    // D. Prominent Massif Ridges (Malapert Massif & Mons Mouton)
+    // D. Soft Mountain Massif Ridge Annotations (Malapert Massif & Mons Mouton)
     const malapert = projectToSvg(-86.0, 0.0);
-    ctx.strokeStyle = 'rgba(247, 185, 85, 0.85)';
-    ctx.lineWidth = 3.6;
+    ctx.strokeStyle = 'rgba(247, 185, 85, 0.45)';
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.ellipse(malapert.svgX, malapert.svgY, 26, 11, -Math.PI / 5, 0, Math.PI * 2);
     ctx.stroke();
 
     const mouton = projectToSvg(-84.6, -30.0);
-    ctx.strokeStyle = 'rgba(155, 163, 176, 0.85)';
-    ctx.lineWidth = 3.0;
+    ctx.strokeStyle = 'rgba(210, 218, 230, 0.35)';
+    ctx.lineWidth = 1.2;
     ctx.beginPath();
     ctx.ellipse(mouton.svgX, mouton.svgY, 24, 13, Math.PI / 4, 0, Math.PI * 2);
     ctx.stroke();
 
     ctx.restore();
-  }, [currentSun.azimuthDeg]);
+  }, []);
 
   // Click on map to drop custom pin
   const handleSvgClick = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -446,7 +391,6 @@ export const PolarStereographicMap: React.FC = () => {
   const latRings = [-80, -82.5, -85, -87.5, -90];
 
   // 3. Dense 360° Raycast Fan (120 rays, 3° increments, 0.6px width)
-  // Colored #E59A23 (amber) until crater rim obstruction, and #D9463E (vermilion) behind rim obstruction
   const raycastRays = useMemo(() => {
     const list: {
       az: number;
@@ -470,21 +414,18 @@ export const PolarStereographicMap: React.FC = () => {
       const xEnd = activePos.svgX + dirX * maxLen;
       const yEnd = activePos.svgY + dirY * maxLen;
 
-      // Detect if ray intersects any major crater rim
       let minObstructionDist = maxLen;
       let hasObstruction = false;
 
-      // Active site local rim distance (e.g. Shackleton rim is ~22px from center)
+      // Active site rim distance
       const isShackletonArea = Math.abs(activeCoord.lat + 89.54) < 0.3;
       if (isShackletonArea) {
-        // Rays heading out of the rim are blocked by opposite rim between az 160°..340°
         if (az > 140 && az < 330) {
           minObstructionDist = 24 + Math.sin(azRad * 2) * 6;
           hasObstruction = true;
         }
       }
 
-      // Check intersection against other major craters
       MAJOR_SOUTH_POLE_CRATERS.forEach((c) => {
         const cPos = projectToSvg(c.lat, c.lon);
         const rPx = (c.radiusKm / RHO_MAX_KM) * (CENTER - 28);
@@ -607,7 +548,7 @@ export const PolarStereographicMap: React.FC = () => {
 
       {/* Main Map Viewport Area */}
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-        {/* High-Contrast LOLA Grayscale Canvas */}
+        {/* High-Contrast Grayscale LOLA Relief Canvas */}
         <canvas
           ref={canvasRef}
           style={{
@@ -703,7 +644,6 @@ export const PolarStereographicMap: React.FC = () => {
           <g>
             {raycastRays.map((ray, i) => (
               <g key={i}>
-                {/* Unblocked segment (amber #E59A23) */}
                 <line
                   x1={ray.x1}
                   y1={ray.y1}
@@ -713,7 +653,6 @@ export const PolarStereographicMap: React.FC = () => {
                   strokeWidth="0.6"
                   opacity="0.65"
                 />
-                {/* Obstructed shadow segment (vermilion #D9463E) */}
                 {ray.hasObstruction && (
                   <line
                     x1={ray.xSplit}
@@ -737,7 +676,7 @@ export const PolarStereographicMap: React.FC = () => {
                 key={c.name}
                 x={p.svgX}
                 y={p.svgY + 2.5}
-                fill="#289E8E"
+                fill="rgba(40, 158, 142, 0.75)"
                 fontSize="6.5"
                 fontFamily="var(--font-mono)"
                 textAnchor="middle"
@@ -749,9 +688,11 @@ export const PolarStereographicMap: React.FC = () => {
             );
           })}
 
-          {/* Benchmark Site Markers (Non-Selected) */}
+          {/* Benchmark Site Markers (Inactive Sites: 11px bold JetBrains Mono inside dark pill badge with 1px solid #4A5264) */}
           {benchmarkSites.map((siteItem) => {
             const { svgX, svgY } = projectToSvg(siteItem.lat, siteItem.lon);
+            const badgeW = siteItem.name.length * 7.5 + 16;
+            const badgeH = 20;
             return (
               <g
                 key={siteItem.name}
@@ -764,9 +705,26 @@ export const PolarStereographicMap: React.FC = () => {
                 }}
               >
                 <circle cx="0" cy="0" r="3.5" fill="#E59A23" stroke="#090A0D" strokeWidth="1.2" />
-                <g transform="translate(6, -3)">
-                  <rect x="0" y="-8" width={siteItem.name.length * 5.2 + 8} height="13" fill="rgba(17, 19, 24, 0.92)" stroke="#262A34" strokeWidth="0.8" rx="1" />
-                  <text x="4" y="0" fill="var(--text-primary)" fontSize="6" fontFamily="var(--font-mono)" fontWeight="bold">
+                <g transform="translate(8, -10)">
+                  <rect
+                    x="0"
+                    y="0"
+                    width={badgeW}
+                    height={badgeH}
+                    fill="rgba(17, 19, 24, 0.88)"
+                    stroke="#4A5264"
+                    strokeWidth="1"
+                    rx="4"
+                  />
+                  <text
+                    x={badgeW / 2}
+                    y="14"
+                    fill="#ECE9E2"
+                    fontSize="11"
+                    fontFamily="'JetBrains Mono', monospace"
+                    fontWeight="bold"
+                    textAnchor="middle"
+                  >
                     {siteItem.name}
                   </text>
                 </g>
@@ -774,7 +732,7 @@ export const PolarStereographicMap: React.FC = () => {
             );
           })}
 
-          {/* Active Target Reticle (Concentric Avionics Rings & Brackets) */}
+          {/* Active Target Reticle & Crisp Pill Badge (11px bold JetBrains Mono inside dark pill badge with 1px solid #E59A23) */}
           <g transform={`translate(${activePos.svgX}, ${activePos.svgY})`}>
             {/* Outer dotted ring */}
             <circle cx="0" cy="0" r="24" fill="none" stroke="var(--accent-solar)" strokeWidth="1.4" strokeDasharray="6,4" />
@@ -790,22 +748,35 @@ export const PolarStereographicMap: React.FC = () => {
             <line x1="0" y1="-30" x2="0" y2="-24" stroke="var(--accent-solar)" strokeWidth="1.2" />
             <line x1="0" y1="24" x2="0" y2="30" stroke="var(--accent-solar)" strokeWidth="1.2" />
 
-            {/* Selected Target Label Flag Card */}
-            <g transform="translate(20, -12)">
+            {/* Crisp Active Target Badge */}
+            <g transform="translate(18, -14)">
               <rect
                 x="0"
-                y="-10"
-                width={130}
-                height="20"
-                fill="rgba(17, 19, 24, 0.95)"
-                stroke="var(--accent-solar)"
-                strokeWidth="1.2"
-                rx="2"
+                y="0"
+                width={150}
+                height="32"
+                fill="rgba(17, 19, 24, 0.88)"
+                stroke="#E59A23"
+                strokeWidth="1"
+                rx="4"
               />
-              <text x="6" y="0" fill="var(--accent-solar-hi)" fontSize="7" fontFamily="var(--font-mono)" fontWeight="bold">
+              <text
+                x="10"
+                y="15"
+                fill="#ECE9E2"
+                fontSize="11"
+                fontFamily="'JetBrains Mono', monospace"
+                fontWeight="bold"
+              >
                 {selectedSite.name}
               </text>
-              <text x="6" y="7" fill="var(--text-secondary)" fontSize="5.5" fontFamily="var(--font-mono)">
+              <text
+                x="10"
+                y="27"
+                fill="#A4AFBF"
+                fontSize="9"
+                fontFamily="'JetBrains Mono', monospace"
+              >
                 ({activeCoord.lat.toFixed(2)}°, {activeCoord.lon.toFixed(2)}°)
               </text>
             </g>
@@ -823,7 +794,7 @@ export const PolarStereographicMap: React.FC = () => {
           </div>
           <div className="floating-hud-row">
             <span>SUN AZ/EL:</span>
-            <strong className="solar">{currentSun.azimuthDeg.toFixed(1)}° / {currentSun.elevationDeg > 0 ? `+${currentSun.elevationDeg.toFixed(1)}°` : `${currentSun.elevationDeg.toFixed(1)}°`}</strong>
+            <strong className="solar">{currentSun.azimuthDeg.toFixed(1)}° / {formatSignedDeg(currentSun.elevationDeg, 1)}</strong>
           </div>
           <div className="floating-hud-row">
             <span>EARTH LOS:</span>
@@ -870,7 +841,7 @@ export const PolarStereographicMap: React.FC = () => {
                 pointerEvents: 'none',
               }}
             >
-              SOLAR VECTORS ({currentSun.elevationDeg > 0 ? `+${currentSun.elevationDeg.toFixed(1)}°` : `${currentSun.elevationDeg.toFixed(1)}°`})
+              SOLAR VECTORS ({formatSignedDeg(currentSun.elevationDeg, 1)})
             </div>
             <div
               style={{
