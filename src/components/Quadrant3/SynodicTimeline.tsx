@@ -1,9 +1,6 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useMissionStore } from '../../store/missionStore';
-import {
-  generateEphemerisTimeline,
-  analyzeTimeline,
-} from '../../engine/lunarEphemeris';
+import { generateEphemerisTimeline } from '../../engine/lunarEphemeris';
 
 export const SynodicTimeline: React.FC = () => {
   const simulationDate = useMissionStore((s) => s.simulationDate);
@@ -35,17 +32,11 @@ export const SynodicTimeline: React.FC = () => {
 
   const profile = horizonProfiles[selectedSiteId] || [];
 
-  // Generate 708-hour timeline snapshots (sampled every 2 hours = ~354 bins for performance)
+  // Generate 708-hour timeline snapshots (sampled every 2 hours)
   const timelineData = useMemo(() => {
     const endDate = new Date(timelineStart.getTime() + timelineHours * 3600000);
     return generateEphemerisTimeline(siteCoord, timelineStart, endDate, 120, profile);
   }, [siteCoord, timelineStart, timelineHours, profile]);
-
-  // Feasibility summary metrics
-  const siteSlope = sitesRegistry.find((s) => s.id === selectedSiteId)?.slopeDeg || 5.0;
-  const metrics = useMemo(() => {
-    return analyzeTimeline(timelineData, siteSlope);
-  }, [timelineData, siteSlope]);
 
   // Animation playback loop
   useEffect(() => {
@@ -60,7 +51,6 @@ export const SynodicTimeline: React.FC = () => {
       const dtSec = (now - lastTickRef.current) / 1000.0;
       lastTickRef.current = now;
 
-      // dtSec * playbackSpeed is hours advanced per real second
       const msAdvance = dtSec * playbackSpeed * 3600 * 1000;
       const currentMs = useMissionStore.getState().simulationDate.getTime();
       const startMs = timelineStart.getTime();
@@ -68,7 +58,7 @@ export const SynodicTimeline: React.FC = () => {
 
       let nextMs = currentMs + msAdvance;
       if (nextMs > maxMs) {
-        nextMs = startMs; // loop around
+        nextMs = startMs;
       }
 
       setSimulationDate(new Date(nextMs));
@@ -81,7 +71,6 @@ export const SynodicTimeline: React.FC = () => {
     };
   }, [isPlaying, playbackSpeed, timelineStart, timelineHours, setSimulationDate]);
 
-  // Current progress fraction along the 708-hr synodic bar (0 to 1)
   const totalMs = timelineHours * 3600000;
   const currentElapsedMs = Math.max(0, Math.min(totalMs, simulationDate.getTime() - timelineStart.getTime()));
   const playheadFraction = currentElapsedMs / totalMs;
@@ -92,131 +81,64 @@ export const SynodicTimeline: React.FC = () => {
     setSimulationDate(new Date(newMs));
   };
 
+  const handleStep = (hours: number) => {
+    const newMs = simulationDate.getTime() + hours * 3600000;
+    const startMs = timelineStart.getTime();
+    const maxMs = startMs + timelineHours * 3600000;
+    const clampedMs = Math.max(startMs, Math.min(maxMs, newMs));
+    setSimulationDate(new Date(clampedMs));
+  };
+
+  // Format PKT time string (UTC+5)
+  const formatPktDate = (d: Date) => {
+    const pktMs = d.getTime() + 5 * 3600000;
+    const pktDate = new Date(pktMs);
+    const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+    const month = months[pktDate.getUTCMonth()];
+    const day = pktDate.getUTCDate();
+    const year = pktDate.getUTCFullYear();
+    const hours = String(pktDate.getUTCHours()).padStart(2, '0');
+    const mins = String(pktDate.getUTCMinutes()).padStart(2, '0');
+    return `${month} ${day}, ${year} - ${hours}:${mins} PKT`;
+  };
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
-      {/* Subheader: Playback Controls & Date Picker */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '0.4rem 0.8rem',
-          borderBottom: '1px solid var(--border-hairline)',
-          backgroundColor: 'var(--bg-surface-2)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          {/* Play/Pause Button */}
-          <button
-            className="btn-tactical-primary"
-            style={{ padding: '0.25rem 0.65rem', fontSize: '0.65rem' }}
-            onClick={() => setIsPlaying(!isPlaying)}
-          >
-            {isPlaying ? '⏸ PAUSE' : '▶ RUN'}
-          </button>
+    <div className="bento-panel" style={{ height: '100%' }}>
+      <div className="corner-tr" />
+      <div className="corner-bl" />
 
-          {/* Speed Selector */}
-          <div style={{ display: 'flex', border: '1px solid var(--border-hairline)', borderRadius: '2px' }}>
-            {[1, 60, 720].map((spd) => (
-              <button
-                key={spd}
-                className="persona-toggle-option"
-                style={{
-                  padding: '0.2rem 0.45rem',
-                  fontSize: '0.60rem',
-                  backgroundColor: playbackSpeed === spd ? 'var(--bg-surface-1)' : undefined,
-                  color: playbackSpeed === spd ? 'var(--accent-solar-hi)' : undefined,
-                }}
-                onClick={() => setPlaybackSpeed(spd)}
-              >
-                {spd}x
-              </button>
-            ))}
-          </div>
-
-          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-            LUNAR SYNODIC CYCLE (708 HOURS / 29.5 DAYS)
-          </span>
-        </div>
-
-        {/* Current Date Readout */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
-            UTC:
-          </span>
-          <span
-            style={{
-              fontSize: '0.70rem',
-              color: 'var(--accent-solar-hi)',
-              fontFamily: 'var(--font-mono)',
-              fontWeight: 'bold',
-            }}
-          >
-            {simulationDate.toISOString().replace('.000Z', ' UTC').replace('T', ' ')}
-          </span>
-        </div>
+      {/* Header */}
+      <div className="bento-panel-header">
+        <span>708-HOUR LUNAR SYNODIC TIMELINE</span>
+        <span style={{ fontSize: '0.60rem', color: 'var(--text-muted)' }}>
+          SYNODIC PERIOD: 29.53059 DAYS
+        </span>
       </div>
 
-      {/* Gantt Strips & Scrubber Body */}
-      <div style={{ flex: 1, padding: '0.8rem 1rem', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '0.6rem' }}>
-        {/* Scrubber slider track */}
-        <div style={{ position: 'relative', width: '100%' }}>
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.001"
-            value={playheadFraction}
-            onChange={handleScrubberChange}
-            className="range-tactical"
-            style={{ width: '100%', cursor: 'pointer' }}
-          />
-          {/* Hour markers */}
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              fontFamily: 'var(--font-mono)',
-              fontSize: '0.60rem',
-              color: 'var(--text-muted)',
-              marginTop: '2px',
-            }}
-          >
-            <span>T+0h (0d)</span>
-            <span>T+177h (7.4d)</span>
-            <span>T+354h (14.8d)</span>
-            <span>T+531h (22.1d)</span>
-            <span>T+708h (29.5d)</span>
-          </div>
+      {/* Timeline Body */}
+      <div style={{ flex: 1, padding: '0.45rem 0.8rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        {/* Date Headers Strip across 708 Hours */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontSize: '0.54rem', color: 'var(--text-secondary)' }}>
+          <span style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>Nov 2026</span>
+          <span>NOV 10 7:35 PKT</span>
+          <span>NOV 11 5:35 PKT</span>
+          <span>NOV 12 4:35 PKT</span>
+          <span>NOV 13 1:35 PKT</span>
+          <span style={{ color: 'var(--accent-solar-hi)', fontWeight: 'bold' }}>NOV 14 11:55 PKT</span>
+          <span>NOV 15 1:35 PKT</span>
+          <span>NOV 16 9:15 PKT</span>
+          <span>NOV 17 1:55 PKT</span>
+          <span>NOV 18 1:35 PKT</span>
+          <span>NOV 19 1:35 PKT</span>
         </div>
 
-        {/* Strip 1: Solar Illumination Gantt */}
+        {/* Stacked Gantt Strip 1: Solar Illumination Windows (28px height) */}
         <div>
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              fontFamily: 'var(--font-mono)',
-              fontSize: '0.62rem',
-              marginBottom: '2px',
-            }}
-          >
-            <span style={{ color: 'var(--accent-solar-hi)' }}>☀️ SOLAR ILLUMINATION WINDOWS</span>
-            <span style={{ color: 'var(--text-secondary)' }}>
-              Fraction: {(metrics.solarFraction * 100).toFixed(1)}% | Max Eclipse: {metrics.maxEclipseHours.toFixed(1)}h
-            </span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontSize: '0.56rem', marginBottom: '2px' }}>
+            <span style={{ color: 'var(--accent-solar-hi)', fontWeight: 'bold' }}>SOLAR ILLUMINATION WINDOWS</span>
+            <span style={{ color: 'var(--text-muted)' }}>708H SYNODIC CYCLE</span>
           </div>
-          <div
-            style={{
-              height: '16px',
-              backgroundColor: '#090A0D',
-              border: '1px solid var(--border-hairline)',
-              borderRadius: '2px',
-              display: 'flex',
-              overflow: 'hidden',
-              position: 'relative',
-            }}
-          >
+          <div className="gantt-strip-stacked">
             {timelineData.map((pt, idx) => {
               const isLit = pt.illuminationFraction > 0.05;
               return (
@@ -225,13 +147,13 @@ export const SynodicTimeline: React.FC = () => {
                   style={{
                     flex: 1,
                     backgroundColor: isLit ? 'var(--accent-solar)' : '#140D0B',
-                    opacity: isLit ? Math.max(0.35, pt.illuminationFraction) : 0.8,
+                    opacity: isLit ? Math.max(0.4, pt.illuminationFraction) : 0.85,
                   }}
-                  title={`T+${idx * 2}h: Sun El ${pt.sun.elevationDeg.toFixed(1)}° (${isLit ? 'Lit' : 'Shadow'})`}
+                  title={`T+${idx * 2}h: Sun El ${pt.sun.elevationDeg.toFixed(1)}° (${isLit ? 'Illuminated' : 'Crater Rim Shadow'})`}
                 />
               );
             })}
-            {/* Playhead indicator */}
+            {/* Playhead Marker */}
             <div
               style={{
                 position: 'absolute',
@@ -240,55 +162,35 @@ export const SynodicTimeline: React.FC = () => {
                 bottom: 0,
                 width: '2px',
                 backgroundColor: '#FFFFFF',
-                boxShadow: '0 0 4px #FFFFFF',
+                boxShadow: '0 0 6px #FFFFFF',
                 pointerEvents: 'none',
               }}
             />
           </div>
         </div>
 
-        {/* Strip 2: Direct-to-Earth (DTE) Comm Link Gantt */}
+        {/* Stacked Gantt Strip 2: Direct-to-Earth (DTE) Visibility (28px height) */}
         <div>
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              fontFamily: 'var(--font-mono)',
-              fontSize: '0.62rem',
-              marginBottom: '2px',
-            }}
-          >
-            <span style={{ color: 'var(--accent-earth-hi)' }}>📡 DIRECT-TO-EARTH (DTE) S-BAND LINK</span>
-            <span style={{ color: 'var(--text-secondary)' }}>
-              Link Coverage: {(metrics.dteFraction * 100).toFixed(1)}%
-            </span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontSize: '0.56rem', marginBottom: '2px' }}>
+            <span style={{ color: 'var(--accent-earth-hi)', fontWeight: 'bold' }}>DIRECT-TO-EARTH (DTE) VISIBILITY</span>
+            <span style={{ color: 'var(--text-muted)' }}>S-BAND COMM LINK</span>
           </div>
-          <div
-            style={{
-              height: '16px',
-              backgroundColor: '#090A0D',
-              border: '1px solid var(--border-hairline)',
-              borderRadius: '2px',
-              display: 'flex',
-              overflow: 'hidden',
-              position: 'relative',
-            }}
-          >
+          <div className="gantt-strip-stacked">
             {timelineData.map((pt, idx) => {
-              const isComm = pt.isDTE;
+              const hasDte = pt.isDTE;
               return (
                 <div
                   key={idx}
                   style={{
                     flex: 1,
-                    backgroundColor: isComm ? 'var(--accent-earth)' : '#0C1717',
-                    opacity: isComm ? 0.9 : 0.5,
+                    backgroundColor: hasDte ? 'var(--accent-earth)' : '#0A1412',
+                    opacity: hasDte ? 0.9 : 0.8,
                   }}
-                  title={`T+${idx * 2}h: Earth El ${pt.earth.elevationDeg.toFixed(1)}° (${isComm ? 'LOS Lock' : 'Occulted'})`}
+                  title={`T+${idx * 2}h: Earth El ${pt.earth.elevationDeg.toFixed(1)}° (${hasDte ? 'Active LOS' : 'Terrain Occulted'})`}
                 />
               );
             })}
-            {/* Playhead indicator */}
+            {/* Playhead Marker */}
             <div
               style={{
                 position: 'absolute',
@@ -297,10 +199,93 @@ export const SynodicTimeline: React.FC = () => {
                 bottom: 0,
                 width: '2px',
                 backgroundColor: '#FFFFFF',
-                boxShadow: '0 0 4px #FFFFFF',
+                boxShadow: '0 0 6px #FFFFFF',
                 pointerEvents: 'none',
               }}
             />
+          </div>
+        </div>
+
+        {/* Scrubber slider track */}
+        <div style={{ position: 'relative', width: '100%', margin: '2px 0' }}>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.001"
+            value={playheadFraction}
+            onChange={handleScrubberChange}
+            className="range-tactical"
+            style={{ width: '100%', cursor: 'pointer', height: '4px' }}
+          />
+        </div>
+
+        {/* Bottom Playback & Centered Date Readout Strip */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '1px' }}>
+          {/* Controls: Step / Play / Speed */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <button
+              className="btn-tactical-secondary"
+              style={{ padding: '0.18rem 0.45rem', fontSize: '0.60rem' }}
+              onClick={() => handleStep(-12)}
+              title="Step backward 12 hours"
+            >
+              ⏮
+            </button>
+            <button
+              className="btn-tactical-primary"
+              style={{ padding: '0.18rem 0.65rem', fontSize: '0.62rem' }}
+              onClick={() => setIsPlaying(!isPlaying)}
+            >
+              {isPlaying ? '⏸' : '▶'}
+            </button>
+            <button
+              className="btn-tactical-secondary"
+              style={{ padding: '0.18rem 0.45rem', fontSize: '0.60rem' }}
+              onClick={() => handleStep(12)}
+              title="Step forward 12 hours"
+            >
+              ⏭
+            </button>
+
+            {/* Speeds */}
+            <div style={{ display: 'flex', border: '1px solid var(--border-hairline)', borderRadius: '2px', marginLeft: '0.3rem' }}>
+              {[1, 60, 720].map((spd) => (
+                <button
+                  key={spd}
+                  style={{
+                    padding: '0.12rem 0.35rem',
+                    fontSize: '0.55rem',
+                    fontFamily: 'var(--font-mono)',
+                    border: 'none',
+                    backgroundColor: playbackSpeed === spd ? 'var(--bg-surface-2)' : 'transparent',
+                    color: playbackSpeed === spd ? 'var(--accent-solar-hi)' : 'var(--text-muted)',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => setPlaybackSpeed(spd)}
+                >
+                  {spd}x
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Centered Tactical Date Indicator */}
+          <div
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: '0.72rem',
+              fontWeight: '800',
+              color: 'var(--text-primary)',
+              letterSpacing: '0.06em',
+            }}
+          >
+            &lt; {formatPktDate(simulationDate)} &gt;
+          </div>
+
+          {/* Status Indicator */}
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.58rem', color: 'var(--text-secondary)' }}>
+            PLAYHEAD: T+{(playheadFraction * 708).toFixed(1)}h
           </div>
         </div>
       </div>

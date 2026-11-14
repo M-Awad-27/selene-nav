@@ -15,6 +15,7 @@ export function App() {
   const [isJplModalOpen, setIsJplModalOpen] = useState(false);
   const [isScenarioModalOpen, setIsScenarioModalOpen] = useState(false);
   const persona = useMissionStore((s) => s.persona);
+  const setPersona = useMissionStore((s) => s.setPersona);
   const setSitesRegistry = useMissionStore((s) => s.setSitesRegistry);
   const setHorizonProfiles = useMissionStore((s) => s.setHorizonProfiles);
 
@@ -30,7 +31,6 @@ export function App() {
         setSitesRegistry(data);
       })
       .catch(() => {
-        // Fallback to inline curated sites
         const fallback = CURATED_LANDING_SITES.map((s, idx) => ({
           id: s.name.toLowerCase().replace(/\s+/g, '-'),
           name: s.name,
@@ -39,7 +39,7 @@ export function App() {
           lat: s.coordinate.latDeg,
           lon: s.coordinate.lonDeg,
           elevationKm: s.coordinate.elevationKm,
-          slopeDeg: 5.0 + (idx % 4) * 2.0,
+          slopeDeg: 4.2 + (idx % 4) * 1.5,
           profile: s.operationalProfile,
           targetHighlight: 'Curated lunar target',
           nominalSunFraction: 0.75,
@@ -69,70 +69,73 @@ export function App() {
   }, [setSitesRegistry, setHorizonProfiles]);
 
   return (
-    <div className="app-shell">
-      {/* ── Top Bar: Mission Control Header & Persona Switcher ── */}
+    <div className="flight-deck-shell">
+      {/* ── Top Command Bar (56px) ── */}
       <MissionHeader
         onOpenJplModal={() => setIsJplModalOpen(true)}
         onOpenScenarioModal={() => setIsScenarioModalOpen(true)}
       />
 
-      {/* ── Optional Educator Deck Ribbon when in Persona 02 ── */}
-      {persona === 'educator' && <EducatorPanel />}
-
-      {/* ── Viewport Grid: All 4 Engineering Quadrants ── */}
-      <main className="viewport-grid">
-        {/* Quadrant 1: South Pole Stereographic Map & Hazard Overlay */}
-        <section className="panel" id="q1-polar-map">
-          <div className="panel-header">
-            <span className="panel-id">Q1</span>
-            <span className="panel-title">SOUTH POLE STEREOGRAPHIC MAP</span>
-          </div>
+      {/* ── Main Workspace Row (1fr) ── */}
+      <main className="flight-deck-workspace">
+        {/* Left Panel: Procedural LOLA Crater Relief Map & Raycast Fan (5 cols) */}
+        <section className="bento-panel" id="q1-polar-map">
           <PolarStereographicMap />
         </section>
 
-        {/* Quadrant 2: 360° Lander's-Eye Topographic Horizon Panorama */}
-        <section className="panel" id="q2-horizon">
-          <div className="panel-header">
-            <span className="panel-id">Q2</span>
-            <span className="panel-title">360° HORIZON PANORAMA & SKYLINE RAYCASTER</span>
-          </div>
+        {/* Right Panel: 360° Horizon Skyline + Polar Radar Sky-Dome (7 cols) */}
+        <section className="bento-panel" id="q2-horizon">
           <HorizonPanorama />
-        </section>
-
-        {/* Quadrant 3: 708-Hour Lunar Synodic Timeline Scrubber */}
-        <section className="panel" id="q3-timeline">
-          <div className="panel-header">
-            <span className="panel-id">Q3</span>
-            <span className="panel-title">708-HR SYNODIC TIMELINE SCRUBBER</span>
-          </div>
-          <SynodicTimeline />
-        </section>
-
-        {/* Quadrant 4: Contingency Diff Matrix (Site-Swap & Launch-Delay) */}
-        <section className="panel" id="q4-contingency">
-          <div className="panel-header">
-            <span className="panel-id">Q4</span>
-            <span className="panel-title">CONTINGENCY DIFF MATRIX (SITE SWAP & LAUNCH DELAY)</span>
-          </div>
-          <ContingencyMatrix />
         </section>
       </main>
 
-      {/* ── Footer: Data Sources, Disclosures & Badges ── */}
-      <footer className="mission-footer">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          <span className="badge-precomputed">PRE-COMPUTED LOLA 80M DEM</span>
-          <span className="badge-live">LIVE JPL HORIZONS API COMPLIANT</span>
-        </div>
+      {/* ── Bottom Dock Row (185px) ── */}
+      <footer className="flight-deck-dock">
+        {/* Bottom-Left: 708-Hour Lunar Synodic Timeline (8 cols) */}
+        <section style={{ height: '100%', minHeight: 0 }}>
+          <SynodicTimeline />
+        </section>
 
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--text-muted)' }}>
-          TEAM ALRAKIS (MUHAMMAD AWAD) · NASA SPACE APPS 2026 (VIRTUAL ISLAMABAD) · MIT LICENSE · AI-ASSISTED ARCHITECTURE
-        </div>
-
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--accent-solar-hi)' }}>
-          AIRLESS TOPOCENTRIC SOLVER v2.6
-        </div>
+        {/* Bottom-Right: Contingency Diff Matrix (4 cols) */}
+        <section style={{ height: '100%', minHeight: 0 }}>
+          <ContingencyMatrix />
+        </section>
       </footer>
+
+      {/* ── Educator & Public Explorer Overlay Drawer (when Persona 02 is active) ── */}
+      {persona === 'educator' && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(9, 10, 13, 0.75)',
+            backdropFilter: 'blur(8px)',
+            zIndex: 100,
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'center',
+            padding: '2rem 1rem',
+            overflowY: 'auto',
+          }}
+          onClick={() => setPersona('flight-dynamics')}
+        >
+          <div
+            style={{ width: '100%', maxWidth: '1240px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.4rem' }}>
+              <button
+                className="btn-tactical-primary"
+                style={{ padding: '0.35rem 0.8rem', fontSize: '0.68rem' }}
+                onClick={() => setPersona('flight-dynamics')}
+              >
+                ✕ RETURN TO FLIGHT DYNAMICS DECK
+              </button>
+            </div>
+            <EducatorPanel />
+          </div>
+        </div>
+      )}
 
       {/* ── NASA JPL Horizons Ephemeris Verifier Modal ── */}
       <JplInspectorModal

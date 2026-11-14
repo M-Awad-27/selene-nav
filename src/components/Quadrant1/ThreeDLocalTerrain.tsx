@@ -170,7 +170,35 @@ export const ThreeDLocalTerrain: React.FC<ThreeDLocalTerrainProps> = ({ shadingM
 
     scene.add(landerGroup);
 
-    // 8. Animation & Render loop
+    // 8. Solar Vector Beam & DTE Comm Link Beams (Hologram Visualizers)
+    const beamMatSolar = new THREE.LineBasicMaterial({ color: 0xf7b955, linewidth: 2, transparent: true, opacity: 0.85 });
+    const beamGeomSolar = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, 2.2, 0),
+      new THREE.Vector3(15, 6, -15),
+    ]);
+    const solarBeam = new THREE.Line(beamGeomSolar, beamMatSolar);
+    scene.add(solarBeam);
+
+    const beamMatDte = new THREE.LineDashedMaterial({ color: 0x4cc9b8, dashSize: 0.8, gapSize: 0.4, linewidth: 2, transparent: true, opacity: 0.9 });
+    const beamGeomDte = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, 2.2, 0),
+      new THREE.Vector3(-12, 18, 12),
+    ]);
+    const dteBeam = new THREE.Line(beamGeomDte, beamMatDte);
+    dteBeam.computeLineDistances();
+    scene.add(dteBeam);
+
+    // Wireframe overlay for holographic aesthetic
+    const wireMat = new THREE.MeshBasicMaterial({
+      color: shadingMode === 'slope-hazard' ? 0xd9463e : 0x289e8e,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.45,
+    });
+    const wireMesh = new THREE.Mesh(geom, wireMat);
+    scene.add(wireMesh);
+
+    // 9. Animation & Render loop
     let animId: number;
     const render = () => {
       animId = requestAnimationFrame(render);
