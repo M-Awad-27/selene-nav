@@ -44,18 +44,17 @@ export const CraterTerrain3D: React.FC<CraterTerrain3DProps> = ({
       ctx.fillStyle = bg;
       ctx.fillRect(0, 0, w, h);
 
-      // 18 x 18 Isometric Grid
-      const N = 18;
-      const cos30 = Math.cos((30.0 * Math.PI) / 180.0); // ~0.866
-      const sin30 = Math.sin((30.0 * Math.PI) / 180.0); // 0.500
+      // 26 x 26 Isometric Grid
+      const N = 26;
+      const cos30 = Math.cos((30.0 * Math.PI) / 180.0);
+      const sin30 = Math.sin((30.0 * Math.PI) / 180.0);
 
-      const scale = Math.min(w, h) * 0.38;
-      const zScale = 16.0;
+      const scale = Math.min(w, h) * 0.36;
+      const zScale = 14.0;
       const cx = w * 0.50;
-      const cy = h * 0.44;
+      const cy = h * 0.46;
 
-      // Mathematical Crater-and-Ridge Height Function z(x, y)
-      // z(x, y) = -2.2 * exp(-(r*r)/0.18) + 1.4 * exp(-((r - 0.55)^2)/0.04) + 0.25 * sin(x*4)*cos(y*4)
+      // Smooth Crater-and-Ridge Height Function
       const getZ = (x: number, y: number) => {
         const r2 = x * x + y * y;
         const r = Math.sqrt(r2);
@@ -65,7 +64,6 @@ export const CraterTerrain3D: React.FC<CraterTerrain3DProps> = ({
         return bowl + rim + micro;
       };
 
-      // 2D grid vertices
       const step = 2.0 / (N - 1);
       const grid: { x: number; y: number; z: number; isoX: number; isoY: number }[][] = [];
 
@@ -75,8 +73,6 @@ export const CraterTerrain3D: React.FC<CraterTerrain3DProps> = ({
         for (let j = 0; j < N; j++) {
           const gy = -1.0 + j * step;
           const gz = getZ(gx, gy);
-
-          // Isometric 3D Projection
           const isoX = cx + (gx - gy) * cos30 * scale;
           const isoY = cy + (gx + gy) * sin30 * scale - gz * zScale;
           row.push({ x: gx, y: gy, z: gz, isoX, isoY });
@@ -84,7 +80,42 @@ export const CraterTerrain3D: React.FC<CraterTerrain3DProps> = ({
         grid.push(row);
       }
 
-      // Draw quads sorted from back to front (Painter's algorithm: i + j order)
+      // Draw subtle isometric base bounding-box grid underneath
+      ctx.save();
+      const baseZ = -2.2; // deepest point
+      const corners = [
+        [-1, -1], [1, -1], [1, 1], [-1, 1]
+      ].map(([gx, gy]) => ({
+        isoX: cx + (gx - gy) * cos30 * scale,
+        isoY: cy + (gx + gy) * sin30 * scale - baseZ * zScale,
+      }));
+      ctx.beginPath();
+      ctx.moveTo(corners[0].isoX, corners[0].isoY);
+      for (let k = 1; k < 4; k++) ctx.lineTo(corners[k].isoX, corners[k].isoY);
+      ctx.closePath();
+      ctx.strokeStyle = 'rgba(74, 82, 100, 0.35)';
+      ctx.lineWidth = 0.6;
+      ctx.stroke();
+      // Grid lines on base
+      for (let k = 0; k < N; k += 4) {
+        const t = -1.0 + k * step;
+        const a1x = cx + (t - (-1)) * cos30 * scale;
+        const a1y = cy + (t + (-1)) * sin30 * scale - baseZ * zScale;
+        const a2x = cx + (t - 1) * cos30 * scale;
+        const a2y = cy + (t + 1) * sin30 * scale - baseZ * zScale;
+        ctx.beginPath(); ctx.moveTo(a1x, a1y); ctx.lineTo(a2x, a2y);
+        ctx.strokeStyle = 'rgba(74, 82, 100, 0.18)'; ctx.lineWidth = 0.4; ctx.stroke();
+
+        const b1x = cx + ((-1) - t) * cos30 * scale;
+        const b1y = cy + ((-1) + t) * sin30 * scale - baseZ * zScale;
+        const b2x = cx + (1 - t) * cos30 * scale;
+        const b2y = cy + (1 + t) * sin30 * scale - baseZ * zScale;
+        ctx.beginPath(); ctx.moveTo(b1x, b1y); ctx.lineTo(b2x, b2y);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // Draw quads sorted from back to front (Painter's algorithm)
       for (let sum = 0; sum <= 2 * (N - 2); sum++) {
         for (let i = 0; i < N - 1; i++) {
           const j = sum - i;
@@ -94,10 +125,23 @@ export const CraterTerrain3D: React.FC<CraterTerrain3DProps> = ({
             const p2 = grid[i + 1][j + 1];
             const p3 = grid[i][j + 1];
 
-            // Local slope calculation in degrees
-            const dzx = Math.abs(p1.z - p0.z);
-            const dzy = Math.abs(p3.z - p0.z);
-            const slopeDeg = (Math.atan(Math.sqrt(dzx * dzx + dzy * dzy) / step) * 180.0) / Math.PI;
+            // Radial distance from crater center for zone classification
+            const midX = (p0.x + p1.x + p2.x + p3.x) / 4;
+            const midY = (p0.y + p1.y + p2.y + p3.y) / 4;
+            const rNorm = Math.sqrt(midX * midX + midY * midY);
+
+            // Physical slope: use finite difference of z over the step
+            // The z function spans roughly -2.2 to +1.4 over 2 units
+            // Real lunar 20km patch: step ≈ 0.77km, dz max ≈ 0.5km → slope ~33°
+            // We want the visual distribution: floor=cyan, plateau=teal, flank=amber, rim=red
+            const dzx = (p1.z - p0.z);
+            const dzy = (p3.z - p0.z);
+            const gradMag = Math.sqrt(dzx * dzx + dzy * dzy) / step;
+            // Scale gradient to physical: multiply by realistic terrain scaling
+            // 20km patch, z range ~3.6 units mapped to ~3km real → z_real = z * 0.83km
+            // slope = atan(dz_real / dx_real) where dx_real = step * 10km
+            const physGrad = gradMag * 0.83 / 10.0;
+            const slopeDeg = (Math.atan(physGrad) * 180.0) / Math.PI;
 
             ctx.beginPath();
             ctx.moveTo(p0.isoX, p0.isoY);
@@ -106,24 +150,36 @@ export const CraterTerrain3D: React.FC<CraterTerrain3DProps> = ({
             ctx.lineTo(p3.isoX, p3.isoY);
             ctx.closePath();
 
-            // Dark translucent cell fill
-            ctx.fillStyle = 'rgba(17, 19, 24, 0.65)';
-            ctx.fill();
-
-            // Wireframe lines colored by local slope angle
             if (shadingMode === 'slope-hazard') {
-              if (slopeDeg < 5.0) {
-                ctx.strokeStyle = '#289E8E'; // Teal — Safe (<5°)
+              // Zone-based coloring matching reference mockup
+              if (rNorm < 0.28) {
+                // Deep Crater Floor — Cryo Cyan-Blue
+                ctx.fillStyle = 'rgba(14, 116, 144, 0.35)';
+                ctx.fill();
+                ctx.strokeStyle = '#38BDF8';
+              } else if (slopeDeg < 5.0) {
+                // Safe Flat Rim & Outer Plateau — Tactical Emerald/Teal
+                ctx.fillStyle = 'rgba(40, 158, 142, 0.28)';
+                ctx.fill();
+                ctx.strokeStyle = '#2DD4BF';
               } else if (slopeDeg < 10.0) {
-                ctx.strokeStyle = '#E59A23'; // Amber — Moderate (5°-10°)
+                // Moderate Rim Slope — Kapton Solar Amber
+                ctx.fillStyle = 'rgba(229, 154, 35, 0.32)';
+                ctx.fill();
+                ctx.strokeStyle = '#F7B955';
               } else {
-                ctx.strokeStyle = '#D9463E'; // Vermilion — Steep Rim Hazard (>10°)
+                // Steep Inner Crater Wall Hazard — Eclipse Vermilion
+                ctx.fillStyle = 'rgba(217, 70, 62, 0.38)';
+                ctx.fill();
+                ctx.strokeStyle = '#F43F5E';
               }
             } else {
+              ctx.fillStyle = 'rgba(17, 19, 24, 0.65)';
+              ctx.fill();
               ctx.strokeStyle = 'rgba(180, 195, 215, 0.55)';
             }
 
-            ctx.lineWidth = 0.8;
+            ctx.lineWidth = 0.7;
             ctx.stroke();
           }
         }
@@ -167,47 +223,80 @@ export const CraterTerrain3D: React.FC<CraterTerrain3DProps> = ({
       ctx.fillStyle = 'rgba(247, 185, 85, 0.45)';
       ctx.fill();
 
-      // Golden Sun Ray Vector Arrow (from Sun's elevation/azimuth)
+      // Golden Sun Ray Vector Arrow — thick 2px glowing beam
       const sunElevRad = (Math.max(-2, currentSun.elevationDeg) * Math.PI) / 180.0;
-      const sunBeamLen = 42;
+      const sunBeamLen = 48;
       const sunVecAngle = Math.PI * 1.18 - sunElevRad * 0.45;
       const sunEndX = landerIsoX + Math.cos(sunVecAngle) * sunBeamLen;
       const sunEndY = tipIsoY + Math.sin(sunVecAngle) * sunBeamLen * 0.7;
 
+      // Glow behind sun beam
+      ctx.beginPath();
+      ctx.moveTo(landerIsoX, tipIsoY);
+      ctx.lineTo(sunEndX, sunEndY);
+      ctx.strokeStyle = 'rgba(247, 185, 85, 0.25)';
+      ctx.lineWidth = 5;
+      ctx.stroke();
+      // Main beam
       ctx.beginPath();
       ctx.moveTo(landerIsoX, tipIsoY);
       ctx.lineTo(sunEndX, sunEndY);
       ctx.strokeStyle = '#F7B955';
-      ctx.lineWidth = 1.8;
+      ctx.lineWidth = 2.0;
       ctx.stroke();
 
-      // Sun Vector Arrowhead
+      // Sun node glow
       ctx.beginPath();
-      ctx.arc(sunEndX, sunEndY, 2.5, 0, Math.PI * 2);
+      ctx.arc(sunEndX, sunEndY, 5, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(247, 185, 85, 0.35)';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(sunEndX, sunEndY, 3, 0, Math.PI * 2);
       ctx.fillStyle = '#F7B955';
       ctx.fill();
 
-      // Cyan DTE Comm Vector Arrow (pointing toward Earth)
+      // Cyan DTE Comm Link Beam — thick 2px dashed beam
       const earthElevRad = (Math.max(0, currentEarth.elevationDeg) * Math.PI) / 180.0;
-      const earthBeamLen = 46;
+      const earthBeamLen = 52;
       const earthVecAngle = -Math.PI * 0.20 - earthElevRad * 0.4;
       const earthEndX = landerIsoX + Math.cos(earthVecAngle) * earthBeamLen;
       const earthEndY = tipIsoY + Math.sin(earthVecAngle) * earthBeamLen * 0.7;
 
+      // Glow behind earth beam
+      ctx.beginPath();
+      ctx.moveTo(landerIsoX, tipIsoY);
+      ctx.lineTo(earthEndX, earthEndY);
+      ctx.strokeStyle = 'rgba(76, 201, 184, 0.2)';
+      ctx.lineWidth = 4;
+      ctx.setLineDash([]);
+      ctx.stroke();
+      // Main dashed beam
       ctx.beginPath();
       ctx.moveTo(landerIsoX, tipIsoY);
       ctx.lineTo(earthEndX, earthEndY);
       ctx.strokeStyle = '#4CC9B8';
-      ctx.lineWidth = 1.6;
-      ctx.setLineDash([3, 2]);
+      ctx.lineWidth = 2.0;
+      ctx.setLineDash([4, 3]);
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // Earth Vector Arrowhead
+      // Earth node
       ctx.beginPath();
-      ctx.arc(earthEndX, earthEndY, 2.5, 0, Math.PI * 2);
+      ctx.arc(earthEndX, earthEndY, 3.5, 0, Math.PI * 2);
       ctx.fillStyle = '#4CC9B8';
       ctx.fill();
+
+      // "DTE COMM LINK" label near earth endpoint
+      ctx.font = 'bold 5.5px "JetBrains Mono", monospace';
+      ctx.fillStyle = '#4CC9B8';
+      ctx.fillText('DTE COMM', earthEndX - 18, earthEndY - 6);
+      ctx.fillText('LINK', earthEndX - 8, earthEndY + 1);
+
+      // Site info text
+      ctx.font = '5px "JetBrains Mono", monospace';
+      ctx.fillStyle = 'rgba(236, 233, 226, 0.6)';
+      ctx.fillText(`Site: Shackleton Rim · Elev:`, 4, h - 14);
+      ctx.fillText(`1.25 km`, 4, h - 7);
 
       ctx.restore();
     };
