@@ -9,7 +9,6 @@ export const SynodicTimeline: React.FC = () => {
   const simulationDate = useMissionStore((s) => s.simulationDate);
   const setSimulationDate = useMissionStore((s) => s.setSimulationDate);
   const timelineStart = useMissionStore((s) => s.timelineStart);
-  const setTimelineStart = useMissionStore((s) => s.setTimelineStart);
   const timelineHours = useMissionStore((s) => s.timelineHours);
   const isPlaying = useMissionStore((s) => s.isPlaying);
   const setIsPlaying = useMissionStore((s) => s.setIsPlaying);

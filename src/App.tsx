@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMissionStore } from './store/missionStore';
 import { MissionHeader } from './components/Header/MissionHeader';
 import { PolarStereographicMap } from './components/Quadrant1/PolarStereographicMap';

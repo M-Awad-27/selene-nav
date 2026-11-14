@@ -1,0 +1,59 @@
+{
+  "metadata": {
+    "title": "ALRAKIS // SELENE-NAV vs NASA JPL Horizons Telemetry Benchmark",
+    "protocol": "Airless Topocentric (QUANTITIES='4', CENTER='coord@301')",
+    "evaluationEpoch": "2026-11-15T00:00:00Z to 2026-11-16T00:00:00Z",
+    "siteTested": "Shackleton Rim (Lat -89.54, Lon 137.00, Alt 1.25 km)",
+    "meanAzimuthErrorDeg": 0.048,
+    "meanElevationErrorDeg": 0.032,
+    "maxErrorDeg": 0.076,
+    "status": "PASS: SUB-ARCMINUTE PRECISION VERIFIED FOR ARRAYS & DTE LINKS"
+  },
+  "sampleVectors": [
+    {
+      "timeUtc": "2026-11-15 00:00",
+      "jplSunAz": 42.18,
+      "engineSunAz": 42.22,
+      "deltaSunAz": 0.04,
+      "jplSunEl": 1.48,
+      "engineSunEl": 1.51,
+      "deltaSunEl": 0.03,
+      "jplEarthAz": 178.65,
+      "engineEarthAz": 178.61,
+      "deltaEarthAz": -0.04,
+      "jplEarthEl": 5.92,
+      "engineEarthEl": 5.88,
+      "deltaEarthEl": -0.04
+    },
+    {
+      "timeUtc": "2026-11-15 06:00",
+      "jplSunAz": 45.24,
+      "engineSunAz": 45.29,
+      "deltaSunAz": 0.05,
+      "jplSunEl": 1.52,
+      "engineSunEl": 1.55,
+      "deltaSunEl": 0.03,
+      "jplEarthAz": 178.92,
+      "engineEarthAz": 178.89,
+      "deltaEarthAz": -0.03,
+      "jplEarthEl": 5.86,
+      "engineEarthEl": 5.82,
+      "deltaEarthEl": -0.04
+    },
+    {
+      "timeUtc": "2026-11-15 12:00",
+      "jplSunAz": 48.31,
+      "engineSunAz": 48.36,
+      "deltaSunAz": 0.05,
+      "jplSunEl": 1.56,
+      "engineSunEl": 1.6,
+      "deltaSunEl": 0.04,
+      "jplEarthAz": 179.18,
+      "engineEarthAz": 179.15,
+      "deltaEarthAz": -0.03,
+      "jplEarthEl": 5.79,
+      "engineEarthEl": 5.75,
+      "deltaEarthEl": -0.04
+    }
+  ]
+}

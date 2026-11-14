@@ -172,9 +172,6 @@ export function computeTopocentricPosition(
   }
 
   // ── Step 2: Convert from J2000 equatorial to selenographic body-fixed ──
-  // The Moon's orientation (libration) gives us the mapping from
-  // J2000 equatorial to selenographic (body-fixed) coordinates.
-  const libration = Astronomy.Libration(astroTime);
 
   // Selenographic sub-observer point gives us the Moon's orientation.
   // We use the libration angles to build the rotation matrix.
@@ -207,10 +204,6 @@ export function computeTopocentricPosition(
   const ey = uy * cosObl + uz * sinObl;
   const ez = -uy * sinObl + uz * cosObl;
 
-  // Compute ecliptic longitude and latitude of the body as seen from Moon center
-  const eclLon = Math.atan2(ey, ex);
-  const eclLat = Math.asin(clampValue(ez, -1, 1));
-
   // ── Step 3: Convert to selenographic coordinates using libration ──
   // The selenographic longitude of the sub-solar/sub-Earth point can be
   // approximated from the ecliptic coordinates and libration parameters.
@@ -236,17 +229,9 @@ export function computeTopocentricPosition(
   // elon = selenographic lon of sub-Earth point. These encode the physical
   // and optical libration combined.
 
-  // Sub-Earth selenographic direction
-  const subEarthLat = libration.elat * DEG2RAD;
-  const subEarthLon = libration.elon * DEG2RAD;
-
   // For the Sun, we need the selenographic coordinates of the sub-solar point.
   // The sub-solar point can be computed from the Sun-Moon vector transformed
   // into the selenographic frame.
-
-  // Build the rotation from ecliptic to selenographic using the Moon's pole
-  // and prime meridian. The Moon's pole in ecliptic coords:
-  const moonPoleEclLat = (90 - LUNAR_AXIAL_TILT_DEG) * DEG2RAD;
 
   // The ascending node of the lunar equator on the ecliptic (mean):
   // Ω = 125.0446° - 0.0529921°d  (where d = days from J2000)
