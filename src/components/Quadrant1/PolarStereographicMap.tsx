@@ -1,20 +1,40 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useMissionStore } from '../../store/missionStore';
 import { polarStereographicProject, R_MOON_KM } from '../../engine/lunarEphemeris';
-import { ThreeDLocalTerrain } from './ThreeDLocalTerrain';
+import { CraterTerrain3D } from './CraterTerrain3D';
 
-// Curated Major South Pole Craters for Continuous Topographic Hillshade Relief
-const SOUTH_POLE_CRATERS = [
-  { name: 'Shackleton', lat: -89.54, lon: 137.0, radiusKm: 21.0, hasPsr: true },
-  { name: 'Peak Near Shackleton', lat: -89.68, lon: 129.0, radiusKm: 14.0, hasPsr: false },
-  { name: 'Shoemaker', lat: -88.10, lon: 45.0, radiusKm: 50.0, hasPsr: true },
-  { name: 'Faustini', lat: -87.30, lon: 77.0, radiusKm: 39.0, hasPsr: true },
-  { name: 'Haworth', lat: -87.45, lon: -5.0, radiusKm: 35.0, hasPsr: true },
-  { name: 'de Gerlache', lat: -88.50, lon: -88.0, radiusKm: 32.0, hasPsr: true },
-  { name: 'Cabeus', lat: -84.90, lon: -35.5, radiusKm: 100.0, hasPsr: true },
-  { name: 'Nobile', lat: -85.20, lon: 53.0, radiusKm: 73.0, hasPsr: true },
-  { name: 'Amundsen', lat: -84.50, lon: 83.0, radiusKm: 105.0, hasPsr: true },
+// Major South Pole Craters with Geodetic Coordinates & PSR Status
+const MAJOR_SOUTH_POLE_CRATERS = [
+  { name: 'Shackleton', lat: -89.54, lon: 137.0, radiusKm: 21.0, hasPsr: true, hasPeak: false },
+  { name: 'Shoemaker', lat: -88.10, lon: 45.0, radiusKm: 50.0, hasPsr: true, hasPeak: true },
+  { name: 'Faustini', lat: -87.30, lon: 77.0, radiusKm: 39.0, hasPsr: true, hasPeak: false },
+  { name: 'Haworth', lat: -87.45, lon: -5.0, radiusKm: 35.0, hasPsr: true, hasPeak: false },
+  { name: 'de Gerlache', lat: -88.50, lon: -88.0, radiusKm: 32.0, hasPsr: true, hasPeak: false },
+  { name: 'Cabeus', lat: -84.90, lon: -35.5, radiusKm: 100.0, hasPsr: true, hasPeak: true },
+  { name: 'Amundsen', lat: -84.50, lon: 83.0, radiusKm: 105.0, hasPsr: true, hasPeak: true },
+  { name: 'Nobile', lat: -85.20, lon: 53.0, radiusKm: 73.0, hasPsr: true, hasPeak: true },
+  { name: 'Peak Near Shackleton', lat: -89.68, lon: 129.0, radiusKm: 13.0, hasPsr: false, hasPeak: false },
 ];
+
+// Deterministic Pseudo-Random Generator for 85 Secondary Craters
+function createSecondaryCraters() {
+  const craters: { lat: number; lon: number; radiusKm: number }[] = [];
+  let seed = 42;
+  const rnd = () => {
+    seed = (seed * 9301 + 49297) % 233280;
+    return seed / 233280;
+  };
+
+  for (let i = 0; i < 88; i++) {
+    const lat = -80.0 - rnd() * 9.5;
+    const lon = rnd() * 360.0 - 180.0;
+    const radiusKm = 4.0 + rnd() * 14.0;
+    craters.push({ lat, lon, radiusKm });
+  }
+  return craters;
+}
+
+const SECONDARY_CRATERS = createSecondaryCraters();
 
 export const PolarStereographicMap: React.FC = () => {
   const sitesRegistry = useMissionStore((s) => s.sitesRegistry);
@@ -24,7 +44,6 @@ export const PolarStereographicMap: React.FC = () => {
   const setCustomCoordinate = useMissionStore((s) => s.setCustomCoordinate);
   const currentSun = useMissionStore((s) => s.currentSun);
   const currentDteActive = useMissionStore((s) => s.currentDteActive);
-  const horizonProfiles = useMissionStore((s) => s.horizonProfiles);
 
   const [isCoordInputOpen, setIsCoordInputOpen] = useState(false);
   const [insetHazardMode, setInsetHazardMode] = useState<'realistic' | 'slope-hazard'>('slope-hazard');
@@ -33,6 +52,7 @@ export const PolarStereographicMap: React.FC = () => {
   const [inputElev, setInputElev] = useState('1.25');
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const offscreenCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // Map projection scale
   const RHO_MAX_KM = 2 * R_MOON_KM * Math.tan((10.0 * Math.PI) / 360.0);
@@ -77,7 +97,113 @@ export const PolarStereographicMap: React.FC = () => {
 
   const activePos = projectToSvg(activeCoord.lat, activeCoord.lon);
 
-  // Procedural Photorealistic LOLA Hillshade Relief Canvas Painting
+  // 1. Generate Gritty High-Contrast Regolith Albedo & Hillshade Texture Buffer (Offscreen)
+  useEffect(() => {
+    const size = VIEWBOX_SIZE;
+    const offscreen = document.createElement('canvas');
+    offscreen.width = size;
+    offscreen.height = size;
+    const octx = offscreen.getContext('2d');
+    if (!octx) return;
+
+    // A. Deep Void Background
+    octx.fillStyle = '#090A0D';
+    octx.fillRect(0, 0, size, size);
+
+    const plateRadius = CENTER - 26;
+
+    // B. Pixel-Level Regolith Albedo & Hillshade Texture Generator
+    // Multi-octave pseudo-fractal noise with directional hillshading from Azimuth 135°
+    const imgData = octx.createImageData(size, size);
+    const data = imgData.data;
+
+    // Directional light vector from Azimuth 135° (top-right to bottom-left)
+    const sunAngle = (135.0 * Math.PI) / 180.0;
+    const lx = Math.sin(sunAngle); // ~0.707
+    const ly = -Math.cos(sunAngle); // ~0.707
+
+    // Fast deterministic 2D noise generator
+    const hash = (x: number, y: number) => {
+      const n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+      return n - Math.floor(n);
+    };
+
+    const smoothNoise = (x: number, y: number) => {
+      const i = Math.floor(x);
+      const j = Math.floor(y);
+      const fx = x - i;
+      const fy = y - j;
+      const sx = fx * fx * (3 - 2 * fx);
+      const sy = fy * fy * (3 - 2 * fy);
+
+      const a = hash(i, j);
+      const b = hash(i + 1, j);
+      const c = hash(i, j + 1);
+      const d = hash(i + 1, j + 1);
+
+      return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
+    };
+
+    const fbm = (x: number, y: number) => {
+      return (
+        0.50 * smoothNoise(x, y) +
+        0.28 * smoothNoise(x * 2.2, y * 2.2) +
+        0.14 * smoothNoise(x * 4.5, y * 4.5) +
+        0.08 * smoothNoise(x * 9.0, y * 9.0)
+      );
+    };
+
+    for (let py = 0; py < size; py += 2) {
+      const dy = py - CENTER;
+      for (let px = 0; px < size; px += 2) {
+        const dx = px - CENTER;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist <= plateRadius) {
+          // Normalize coordinates
+          const nx = dx / plateRadius;
+          const ny = dy / plateRadius;
+
+          // Heightfield: macro-depression at pole + mountain massifs + multi-octave regolith roughness
+          const scale = 7.5;
+          const h = fbm(nx * scale + 10, ny * scale + 10);
+          const hR = fbm((nx + 0.015) * scale + 10, ny * scale + 10);
+          const hU = fbm(nx * scale + 10, (ny + 0.015) * scale + 10);
+
+          // Hillshade gradient
+          const dhdx = (hR - h) / 0.015;
+          const dhdy = (hU - h) / 0.015;
+          const hillshade = 0.5 + 0.45 * (dhdx * lx + dhdy * ly);
+
+          // Lunar Basalt & Anorthosite Regolith Palette (#1E222A to #6E7582)
+          // Gritty dark-grey/silver basalt
+          const normDist = dist / plateRadius;
+          const limbDarkening = 1.0 - Math.pow(normDist, 3.5) * 0.45;
+          const intensity = Math.max(0.12, Math.min(0.92, (0.28 + h * 0.42 + hillshade * 0.38) * limbDarkening));
+
+          const r = Math.floor(30 + intensity * 80);
+          const g = Math.floor(34 + intensity * 83);
+          const b = Math.floor(42 + intensity * 88);
+
+          // Write 2x2 pixel block for crisp resolution and high performance
+          for (let oy = 0; oy < 2; oy++) {
+            for (let ox = 0; ox < 2; ox++) {
+              const idx = ((py + oy) * size + (px + ox)) * 4;
+              data[idx] = r;
+              data[idx + 1] = g;
+              data[idx + 2] = b;
+              data[idx + 3] = 255;
+            }
+          }
+        }
+      }
+    }
+
+    octx.putImageData(imgData, 0, 0);
+    offscreenCanvasRef.current = offscreen;
+  }, []);
+
+  // 2. Draw Realistic LOLA Craters, Shadow Crescents, PSRs and Massifs onto Canvas
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -88,188 +214,182 @@ export const PolarStereographicMap: React.FC = () => {
     canvas.width = size;
     canvas.height = size;
 
-    // 1. Deep space background
-    ctx.fillStyle = '#090A0D';
-    ctx.fillRect(0, 0, size, size);
+    // Draw precomputed gritty regolith albedo base
+    if (offscreenCanvasRef.current) {
+      ctx.drawImage(offscreenCanvasRef.current, 0, 0);
+    } else {
+      ctx.fillStyle = '#1A1D24';
+      ctx.fillRect(0, 0, size, size);
+    }
 
-    // 2. Realistic LOLA Anorthositic Lunar Highland Crust (80°S circular polar disk)
     const plateRadius = CENTER - 26;
-    const plateGrad = ctx.createRadialGradient(CENTER, CENTER, 25, CENTER, CENTER, plateRadius);
-    plateGrad.addColorStop(0, '#B8C2D1'); // light highland regolith
-    plateGrad.addColorStop(0.35, '#A4AFBF');
-    plateGrad.addColorStop(0.70, '#8692A4');
-    plateGrad.addColorStop(0.92, '#5C6677');
-    plateGrad.addColorStop(1.0, '#1E232D');
 
     ctx.save();
     ctx.beginPath();
     ctx.arc(CENTER, CENTER, plateRadius, 0, Math.PI * 2);
     ctx.clip();
-    ctx.fillStyle = plateGrad;
-    ctx.fill();
 
-    // 3. Regolith Micro-Texture & Cratering Noise
-    const pseudoRandom = (seed: number) => {
-      const x = Math.sin(seed) * 10000;
-      return x - Math.floor(x);
-    };
+    // Fixed Sun Direction Vector: Azimuth 135° (standard LOLA hillshading convention)
+    const sunAzRad = (135.0 * Math.PI) / 180.0;
+    const sunDx = Math.sin(sunAzRad); // ~0.707
+    const sunDy = -Math.cos(sunAzRad); // ~0.707
 
-    // Directional Sun lighting vector
-    const sunAzRad = (currentSun.azimuthDeg * Math.PI) / 180.0;
-    const sunDx = Math.sin(sunAzRad);
-    const sunDy = -Math.cos(sunAzRad);
+    // A. Draw 85 Secondary Craters (Flat floor #161920, sunlit rim #9BA3B0, shadow crescent #090A0D)
+    SECONDARY_CRATERS.forEach((sc) => {
+      const { svgX, svgY } = projectToSvg(sc.lat, sc.lon);
+      const rPx = Math.max(3.5, (sc.radiusKm / RHO_MAX_KM) * (CENTER - 28));
 
-    // 4. Draw 65 Procedural Micro-Craters with Directional Hillshade
-    for (let i = 0; i < 65; i++) {
-      const rDist = pseudoRandom(i * 13.7) * (plateRadius - 30);
-      const theta = pseudoRandom(i * 29.3) * Math.PI * 2;
-      const mcX = CENTER + Math.cos(theta) * rDist;
-      const mcY = CENTER + Math.sin(theta) * rDist;
-      const mcR = 3.0 + pseudoRandom(i * 7.1) * 9.0;
-
-      // Crater bowl shadow
-      ctx.fillStyle = 'rgba(12, 16, 24, 0.75)';
+      // Crater floor
+      ctx.fillStyle = '#161920';
       ctx.beginPath();
-      ctx.arc(mcX, mcY, mcR, 0, Math.PI * 2);
+      ctx.arc(svgX, svgY, rPx, 0, Math.PI * 2);
       ctx.fill();
 
-      // Sunlit rim highlight
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
-      ctx.lineWidth = 1.2;
+      // Leeward dark shadow crescent (#090A0D)
+      ctx.fillStyle = '#090A0D';
       ctx.beginPath();
-      ctx.arc(mcX - sunDx * 0.8, mcY - sunDy * 0.8, mcR, 0, Math.PI * 2);
-      ctx.stroke();
-    }
+      ctx.arc(svgX - sunDx * rPx * 0.25, svgY - sunDy * rPx * 0.25, rPx * 0.85, 0, Math.PI * 2);
+      ctx.fill();
 
-    // 5. Central Cryo-Indigo Permanently Shadowed Region (PSR) Basin
-    // Covers the low cold-trap basins around Shackleton, Shoemaker, Faustini, Haworth
-    const psrPoints = [
+      // Sunlit outer rim highlight (#9BA3B0)
+      ctx.strokeStyle = '#9BA3B0';
+      ctx.lineWidth = Math.max(1.0, rPx * 0.22);
+      ctx.beginPath();
+      ctx.arc(svgX + sunDx * rPx * 0.1, svgY + sunDy * rPx * 0.1, rPx, sunAzRad - Math.PI * 0.45, sunAzRad + Math.PI * 0.45);
+      ctx.stroke();
+    });
+
+    // B. Draw Cryo-Indigo Permanently Shadowed Region (PSR) Central Basin
+    const psrBasinCoords = [
       projectToSvg(-89.9, 0),
-      projectToSvg(-89.2, 80),
-      projectToSvg(-87.8, 55),
-      projectToSvg(-86.9, 75),
-      projectToSvg(-87.2, 120),
-      projectToSvg(-88.7, 145),
-      projectToSvg(-89.3, -30),
-      projectToSvg(-88.2, -60),
-      projectToSvg(-87.1, -10),
-      projectToSvg(-87.6, 20),
+      projectToSvg(-89.3, 70),
+      projectToSvg(-87.8, 50),
+      projectToSvg(-86.8, 72),
+      projectToSvg(-87.1, 125),
+      projectToSvg(-88.8, 140),
+      projectToSvg(-89.4, -30),
+      projectToSvg(-88.3, -65),
+      projectToSvg(-87.2, -10),
+      projectToSvg(-87.7, 25),
     ];
 
     ctx.save();
     ctx.beginPath();
-    psrPoints.forEach((pt, idx) => {
+    psrBasinCoords.forEach((pt, idx) => {
       if (idx === 0) ctx.moveTo(pt.svgX, pt.svgY);
       else ctx.lineTo(pt.svgX, pt.svgY);
     });
     ctx.closePath();
-    ctx.fillStyle = 'rgba(16, 32, 60, 0.78)';
+    ctx.fillStyle = 'rgba(20, 42, 78, 0.72)';
     ctx.fill();
-    ctx.strokeStyle = 'rgba(40, 158, 142, 0.6)';
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([3, 4]);
+    ctx.strokeStyle = '#289E8E';
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([3, 3]);
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.restore();
 
-    // 6. Render Major South Pole Craters with Accurate LOLA Hillshading
-    SOUTH_POLE_CRATERS.forEach((crater) => {
+    // C. Draw Major South Pole Craters with Full Realistic Morphology
+    MAJOR_SOUTH_POLE_CRATERS.forEach((crater) => {
       const { svgX, svgY } = projectToSvg(crater.lat, crater.lon);
-      const rPx = Math.max(10, (crater.radiusKm / RHO_MAX_KM) * (CENTER - 28));
+      const rPx = Math.max(12, (crater.radiusKm / RHO_MAX_KM) * (CENTER - 28));
 
-      // A. Cast shadow onto leeward terrain
-      const shadowGrad = ctx.createRadialGradient(
-        svgX - sunDx * rPx * 0.4,
-        svgY - sunDy * rPx * 0.4,
-        rPx * 0.5,
+      // 1. Crater outer cast shadow on leeward ground
+      const castShadowGrad = ctx.createRadialGradient(
+        svgX - sunDx * rPx * 0.5,
+        svgY - sunDy * rPx * 0.5,
+        rPx * 0.6,
         svgX,
         svgY,
-        rPx * 1.3
+        rPx * 1.45
       );
-      shadowGrad.addColorStop(0, 'rgba(8, 11, 16, 0.9)');
-      shadowGrad.addColorStop(0.7, 'rgba(8, 11, 16, 0.6)');
-      shadowGrad.addColorStop(1, 'rgba(8, 11, 16, 0)');
-      ctx.fillStyle = shadowGrad;
+      castShadowGrad.addColorStop(0, 'rgba(9, 10, 13, 0.85)');
+      castShadowGrad.addColorStop(0.65, 'rgba(9, 10, 13, 0.45)');
+      castShadowGrad.addColorStop(1, 'rgba(9, 10, 13, 0)');
+      ctx.fillStyle = castShadowGrad;
       ctx.beginPath();
-      ctx.arc(svgX, svgY, rPx * 1.3, 0, Math.PI * 2);
+      ctx.arc(svgX, svgY, rPx * 1.45, 0, Math.PI * 2);
       ctx.fill();
 
-      // B. Crater interior bowl
-      const bowlGrad = ctx.createRadialGradient(
-        svgX + sunDx * rPx * 0.3,
-        svgY + sunDy * rPx * 0.3,
-        rPx * 0.1,
-        svgX,
-        svgY,
-        rPx * 0.96
-      );
-      bowlGrad.addColorStop(0, crater.hasPsr ? '#0A121E' : '#11151F');
-      bowlGrad.addColorStop(0.65, crater.hasPsr ? '#101C30' : '#1C2230');
-      bowlGrad.addColorStop(1.0, '#384252');
-      ctx.fillStyle = bowlGrad;
+      // 2. Textured Flat Crater Floor (#161920)
+      ctx.fillStyle = '#161920';
       ctx.beginPath();
-      ctx.arc(svgX, svgY, rPx * 0.96, 0, Math.PI * 2);
+      ctx.arc(svgX, svgY, rPx * 0.95, 0, Math.PI * 2);
       ctx.fill();
 
-      // C. Illuminated Sunward Rim Crest Highlight (Pure white/silver)
-      const rimHighlight = ctx.createLinearGradient(
-        svgX - sunDx * rPx,
-        svgY - sunDy * rPx,
-        svgX + sunDx * rPx,
-        svgY + sunDy * rPx
-      );
-      rimHighlight.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
-      rimHighlight.addColorStop(0.35, 'rgba(215, 225, 240, 0.6)');
-      rimHighlight.addColorStop(0.75, 'rgba(30, 36, 48, 0)');
-      ctx.strokeStyle = rimHighlight;
-      ctx.lineWidth = Math.max(2.2, rPx * 0.12);
+      // 3. Steep Dark Inner Shadow Crescent on Opposite Wall (#090A0D)
+      ctx.fillStyle = '#090A0D';
       ctx.beginPath();
-      ctx.arc(svgX, svgY, rPx, 0, Math.PI * 2);
-      ctx.stroke();
+      ctx.arc(svgX - sunDx * rPx * 0.32, svgY - sunDy * rPx * 0.32, rPx * 0.82, 0, Math.PI * 2);
+      ctx.fill();
 
-      // D. Crater Shadowed Inner Wall
-      const shadowWall = ctx.createLinearGradient(
-        svgX + sunDx * rPx,
-        svgY + sunDy * rPx,
-        svgX - sunDx * rPx,
-        svgY - sunDy * rPx
-      );
-      shadowWall.addColorStop(0, 'rgba(7, 9, 13, 0.88)');
-      shadowWall.addColorStop(0.45, 'rgba(7, 9, 13, 0.2)');
-      shadowWall.addColorStop(0.8, 'rgba(7, 9, 13, 0)');
-      ctx.strokeStyle = shadowWall;
-      ctx.lineWidth = Math.max(2.0, rPx * 0.14);
-      ctx.beginPath();
-      ctx.arc(svgX, svgY, rPx * 0.92, 0, Math.PI * 2);
-      ctx.stroke();
-
-      // E. Crater Floor PSR Outline
+      // 4. Cryo-Indigo Permanently Shadowed Region Floor (if applicable)
       if (crater.hasPsr) {
-        ctx.fillStyle = 'rgba(18, 36, 68, 0.85)';
+        ctx.fillStyle = 'rgba(20, 42, 78, 0.72)';
         ctx.beginPath();
-        ctx.arc(svgX + sunDx * rPx * 0.15, svgY + sunDy * rPx * 0.15, rPx * 0.55, 0, Math.PI * 2);
+        ctx.arc(svgX - sunDx * rPx * 0.15, svgY - sunDy * rPx * 0.15, rPx * 0.55, 0, Math.PI * 2);
         ctx.fill();
-        ctx.strokeStyle = 'rgba(40, 158, 142, 0.7)';
-        ctx.lineWidth = 0.9;
-        ctx.setLineDash([2, 3]);
+
+        ctx.strokeStyle = '#289E8E';
+        ctx.lineWidth = 1.0;
+        ctx.setLineDash([3, 3]);
         ctx.stroke();
         ctx.setLineDash([]);
       }
+
+      // 5. Central Mountain Peak (if applicable)
+      if (crater.hasPeak) {
+        ctx.fillStyle = '#090A0D';
+        ctx.beginPath();
+        ctx.arc(svgX - 1.5, svgY - 1.5, Math.max(2, rPx * 0.12), 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#9BA3B0';
+        ctx.beginPath();
+        ctx.arc(svgX + 1, svgY + 1, Math.max(1.8, rPx * 0.1), 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // 6. Bright Sunlit Outer Rim Wall on Sunward Side (#9BA3B0)
+      ctx.strokeStyle = '#9BA3B0';
+      ctx.lineWidth = Math.max(2.2, rPx * 0.15);
+      ctx.beginPath();
+      ctx.arc(
+        svgX + sunDx * rPx * 0.08,
+        svgY + sunDy * rPx * 0.08,
+        rPx,
+        sunAzRad - Math.PI * 0.52,
+        sunAzRad + Math.PI * 0.52
+      );
+      ctx.stroke();
+
+      // Highlight peak on the rim crest
+      ctx.strokeStyle = '#CCD5E2';
+      ctx.lineWidth = Math.max(1.0, rPx * 0.07);
+      ctx.beginPath();
+      ctx.arc(
+        svgX + sunDx * rPx * 0.08,
+        svgY + sunDy * rPx * 0.08,
+        rPx,
+        sunAzRad - Math.PI * 0.25,
+        sunAzRad + Math.PI * 0.25
+      );
+      ctx.stroke();
     });
 
-    // 7. Malapert Massif & Mons Mouton High Ridges
+    // D. Prominent Massif Ridges (Malapert Massif & Mons Mouton)
     const malapert = projectToSvg(-86.0, 0.0);
-    ctx.strokeStyle = 'rgba(247, 185, 85, 0.75)';
-    ctx.lineWidth = 3.5;
+    ctx.strokeStyle = 'rgba(247, 185, 85, 0.85)';
+    ctx.lineWidth = 3.6;
     ctx.beginPath();
     ctx.ellipse(malapert.svgX, malapert.svgY, 26, 11, -Math.PI / 5, 0, Math.PI * 2);
     ctx.stroke();
 
     const mouton = projectToSvg(-84.6, -30.0);
-    ctx.strokeStyle = 'rgba(240, 245, 255, 0.65)';
-    ctx.lineWidth = 2.8;
+    ctx.strokeStyle = 'rgba(155, 163, 176, 0.85)';
+    ctx.lineWidth = 3.0;
     ctx.beginPath();
-    ctx.ellipse(mouton.svgX, mouton.svgY, 24, 14, Math.PI / 4, 0, Math.PI * 2);
+    ctx.ellipse(mouton.svgX, mouton.svgY, 24, 13, Math.PI / 4, 0, Math.PI * 2);
     ctx.stroke();
 
     ctx.restore();
@@ -325,34 +445,88 @@ export const PolarStereographicMap: React.FC = () => {
   // Concentric latitude rings
   const latRings = [-80, -82.5, -85, -87.5, -90];
 
-  // 360° Radial Raycast Fan (120 rays, 3° increments)
-  const currentProfile = horizonProfiles[selectedSiteId] || [];
-  const raycastRays = Array.from({ length: 120 }).map((_, idx) => {
-    const az = idx * 3;
-    const azRad = (az * Math.PI) / 180.0;
-    const maxLen = 175;
-    const horizonElev = currentProfile[az % (currentProfile.length || 1)] ?? 2.5;
-    const isBlocked = horizonElev > 2.0;
-    const rayLen = isBlocked ? maxLen * 0.75 : maxLen;
+  // 3. Dense 360° Raycast Fan (120 rays, 3° increments, 0.6px width)
+  // Colored #E59A23 (amber) until crater rim obstruction, and #D9463E (vermilion) behind rim obstruction
+  const raycastRays = useMemo(() => {
+    const list: {
+      az: number;
+      x1: number;
+      y1: number;
+      xSplit: number;
+      ySplit: number;
+      x2: number;
+      y2: number;
+      hasObstruction: boolean;
+    }[] = [];
 
-    const x2 = activePos.svgX + Math.sin(azRad) * rayLen;
-    const y2 = activePos.svgY - Math.cos(azRad) * rayLen;
+    const maxLen = 185;
 
-    return {
-      az,
-      x1: activePos.svgX,
-      y1: activePos.svgY,
-      x2,
-      y2,
-      isBlocked,
-    };
-  });
+    for (let idx = 0; idx < 120; idx++) {
+      const az = idx * 3;
+      const azRad = (az * Math.PI) / 180.0;
+      const dirX = Math.sin(azRad);
+      const dirY = -Math.cos(azRad);
 
-  // Major Benchmark Non-Selected Sites to display neatly without clutter
+      const xEnd = activePos.svgX + dirX * maxLen;
+      const yEnd = activePos.svgY + dirY * maxLen;
+
+      // Detect if ray intersects any major crater rim
+      let minObstructionDist = maxLen;
+      let hasObstruction = false;
+
+      // Active site local rim distance (e.g. Shackleton rim is ~22px from center)
+      const isShackletonArea = Math.abs(activeCoord.lat + 89.54) < 0.3;
+      if (isShackletonArea) {
+        // Rays heading out of the rim are blocked by opposite rim between az 160°..340°
+        if (az > 140 && az < 330) {
+          minObstructionDist = 24 + Math.sin(azRad * 2) * 6;
+          hasObstruction = true;
+        }
+      }
+
+      // Check intersection against other major craters
+      MAJOR_SOUTH_POLE_CRATERS.forEach((c) => {
+        const cPos = projectToSvg(c.lat, c.lon);
+        const rPx = (c.radiusKm / RHO_MAX_KM) * (CENTER - 28);
+        const toCraterX = cPos.svgX - activePos.svgX;
+        const toCraterY = cPos.svgY - activePos.svgY;
+        const proj = toCraterX * dirX + toCraterY * dirY;
+
+        if (proj > 8 && proj < maxLen) {
+          const perpDist = Math.abs(toCraterX * -dirY + toCraterY * dirX);
+          if (perpDist < rPx * 0.85) {
+            const hitDist = proj - Math.sqrt(Math.max(0, rPx * rPx - perpDist * perpDist));
+            if (hitDist > 10 && hitDist < minObstructionDist) {
+              minObstructionDist = hitDist;
+              hasObstruction = true;
+            }
+          }
+        }
+      });
+
+      const splitDist = hasObstruction ? minObstructionDist : maxLen;
+      const xSplit = activePos.svgX + dirX * splitDist;
+      const ySplit = activePos.svgY + dirY * splitDist;
+
+      list.push({
+        az,
+        x1: activePos.svgX,
+        y1: activePos.svgY,
+        xSplit,
+        ySplit,
+        x2: xEnd,
+        y2: yEnd,
+        hasObstruction,
+      });
+    }
+    return list;
+  }, [activePos.svgX, activePos.svgY, activeCoord.lat]);
+
+  // Benchmark Non-Selected Site Badges
   const benchmarkSites = [
-    { name: 'Malapert Massif', lat: -86.0, lon: 0.0, subtitle: 'ACTIVE SITE | ARTIMIS' },
-    { name: 'Mons Mouton', lat: -84.6, lon: -30.0, subtitle: 'STATUS SITE | ARTIMIS' },
-    { name: 'Peak Near Shackleton', lat: -89.68, lon: 129.0, subtitle: 'HIGHWAY RIM' },
+    { name: 'Malapert Massif', lat: -86.0, lon: 0.0 },
+    { name: 'Mons Mouton', lat: -84.6, lon: -30.0 },
+    { name: 'Peak Near Shackleton', lat: -89.68, lon: 129.0 },
   ];
 
   return (
@@ -433,7 +607,7 @@ export const PolarStereographicMap: React.FC = () => {
 
       {/* Main Map Viewport Area */}
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-        {/* Procedural Hillshade Canvas Background */}
+        {/* High-Contrast LOLA Grayscale Canvas */}
         <canvas
           ref={canvasRef}
           style={{
@@ -459,7 +633,7 @@ export const PolarStereographicMap: React.FC = () => {
           }}
           onClick={handleSvgClick}
         >
-          {/* Concentric Latitude Rings */}
+          {/* Concentric Latitude Rings (80°S to 90°S) */}
           {latRings.map((lat) => {
             const { x } = polarStereographicProject(lat, 90);
             const radius = x * SCALE;
@@ -506,7 +680,7 @@ export const PolarStereographicMap: React.FC = () => {
                   y1={CENTER}
                   x2={x2}
                   y2={y2}
-                  stroke={isPrime ? 'var(--accent-earth)' : 'rgba(74, 82, 100, 0.32)'}
+                  stroke={isPrime ? 'var(--accent-earth)' : 'rgba(74, 82, 100, 0.35)'}
                   strokeWidth={isPrime ? 1.4 : 0.5}
                   strokeDasharray={isPrime ? undefined : '2,4'}
                 />
@@ -525,30 +699,45 @@ export const PolarStereographicMap: React.FC = () => {
             );
           })}
 
-          {/* 360° Radial Raycast Fan from Active Target Pin */}
-          <g opacity="0.85">
+          {/* Dense 360° Raycast Fan (120 rays, 0.6px width: #E59A23 amber unblocked, #D9463E vermilion obstructed) */}
+          <g>
             {raycastRays.map((ray, i) => (
-              <line
-                key={i}
-                x1={ray.x1}
-                y1={ray.y1}
-                x2={ray.x2}
-                y2={ray.y2}
-                stroke={ray.isBlocked ? 'rgba(217, 70, 62, 0.55)' : 'rgba(247, 185, 85, 0.45)'}
-                strokeWidth={ray.isBlocked ? 0.75 : 0.55}
-              />
+              <g key={i}>
+                {/* Unblocked segment (amber #E59A23) */}
+                <line
+                  x1={ray.x1}
+                  y1={ray.y1}
+                  x2={ray.xSplit}
+                  y2={ray.ySplit}
+                  stroke="#E59A23"
+                  strokeWidth="0.6"
+                  opacity="0.65"
+                />
+                {/* Obstructed shadow segment (vermilion #D9463E) */}
+                {ray.hasObstruction && (
+                  <line
+                    x1={ray.xSplit}
+                    y1={ray.ySplit}
+                    x2={ray.x2}
+                    y2={ray.y2}
+                    stroke="#D9463E"
+                    strokeWidth="0.6"
+                    opacity="0.45"
+                  />
+                )}
+              </g>
             ))}
           </g>
 
-          {/* PSR Polygon Water-Ice Trap Labels */}
-          {SOUTH_POLE_CRATERS.filter((c) => c.hasPsr).map((c) => {
+          {/* PSR Micro-Labels inside Cold Traps */}
+          {MAJOR_SOUTH_POLE_CRATERS.filter((c) => c.hasPsr).map((c) => {
             const p = projectToSvg(c.lat, c.lon);
             return (
               <text
                 key={c.name}
                 x={p.svgX}
                 y={p.svgY + 2.5}
-                fill="rgba(76, 201, 184, 0.85)"
+                fill="#289E8E"
                 fontSize="6.5"
                 fontFamily="var(--font-mono)"
                 textAnchor="middle"
@@ -646,7 +835,7 @@ export const PolarStereographicMap: React.FC = () => {
           </div>
         </div>
 
-        {/* Bottom-Right Inset — 3D Local Crater Hologram */}
+        {/* Bottom-Right Inset — True 3D Isometric Crater Hologram */}
         <div className="inset-3d-hologram">
           <div className="inset-3d-header">
             <span>3D LOCAL CRATER HOLOGRAM</span>
@@ -666,7 +855,7 @@ export const PolarStereographicMap: React.FC = () => {
             </button>
           </div>
           <div style={{ flex: 1, position: 'relative' }}>
-            <ThreeDLocalTerrain shadingMode={insetHazardMode} compact={true} />
+            <CraterTerrain3D shadingMode={insetHazardMode} compact={true} />
             <div
               style={{
                 position: 'absolute',

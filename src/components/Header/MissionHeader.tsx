@@ -15,7 +15,7 @@ export const MissionHeader: React.FC<MissionHeaderProps> = ({ onOpenJplModal, on
   return (
     <header className="flight-deck-header">
       {/* Left: Brand Callsign & Dual Persona Switcher */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, whiteSpace: 'nowrap' }}>
         <div className="header-brand">
           <span className="brand-callsign">ALRAKIS</span>
           <span className="brand-separator">//</span>
@@ -42,7 +42,7 @@ export const MissionHeader: React.FC<MissionHeaderProps> = ({ onOpenJplModal, on
       </div>
 
       {/* Center: Large High-Contrast Tabular Countdowns */}
-      <div className="header-countdowns">
+      <div className="header-countdowns" style={{ gap: '12px' }}>
         <div className="header-countdown-item">
           <span className="header-countdown-label">
             {sunsetCountdown.isSetting ? 'TIME TO LOCAL SUNSET:' : 'TIME TO LOCAL SUNRISE:'}
@@ -62,8 +62,8 @@ export const MissionHeader: React.FC<MissionHeaderProps> = ({ onOpenJplModal, on
         </div>
       </div>
 
-      {/* Right: Live Data Link Indicator & Tactical Action Buttons */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+      {/* Right: Live Data Link Indicator & Tactical Action Buttons (with guaranteed 12px right margin) */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, whiteSpace: 'nowrap' }}>
         {/* Animated Avionics LED Indicator */}
         <div className="live-data-led-group" title="Ephemeris synchronized to NASA JPL Horizons System API (coord@301)">
           <div className="led-bar-graph">
@@ -79,20 +79,20 @@ export const MissionHeader: React.FC<MissionHeaderProps> = ({ onOpenJplModal, on
 
         <button
           className="btn-tactical-secondary"
-          style={{ padding: '0.3rem 0.65rem', fontSize: '0.62rem', whiteSpace: 'nowrap' }}
+          style={{ padding: '0.28rem 0.6rem', fontSize: '0.64rem', whiteSpace: 'nowrap' }}
           onClick={onOpenScenarioModal}
           title="Compare landing site alternatives and launch slip timeline deltas"
         >
-          + COMPARE SITE / DATE DELTA
+          + COMPARE DELTA
         </button>
 
         <button
           className="btn-tactical-primary"
-          style={{ padding: '0.3rem 0.75rem', fontSize: '0.62rem', whiteSpace: 'nowrap' }}
+          style={{ padding: '0.28rem 0.7rem', fontSize: '0.64rem', whiteSpace: 'nowrap' }}
           onClick={onOpenJplModal}
           title="Verify topocentric ephemeris with NASA JPL Horizons API (coord@301)"
         >
-          VERIFY JPL HORIZONS API
+          VERIFY JPL API
         </button>
       </div>
     </header>

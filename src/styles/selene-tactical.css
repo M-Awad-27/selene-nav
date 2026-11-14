@@ -146,11 +146,13 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 0.85rem;
+  padding: 0 12px;
+  gap: 8px;
   position: relative;
   overflow: hidden;
   box-sizing: border-box;
   flex-shrink: 0;
+  white-space: nowrap;
 }
 
 /* Row 2: Main Workspace (12-column grid: 5 cols left, 7 cols right) */
