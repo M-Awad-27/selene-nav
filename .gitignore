@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Raw screen recordings (>100MB blocked by GitHub)
+20261115*.mp4
+Video/Recording*.mp4
+Video/20261115*.mp4
