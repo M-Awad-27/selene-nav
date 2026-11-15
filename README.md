@@ -19,6 +19,12 @@
   <img src="https://img.shields.io/badge/Performance-60_FPS_Client_Side-green?style=for-the-badge" alt="60 FPS Client-Side" />
 </p>
 
+<p align="center">
+  <a href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FM-Awad-27%2Fselene-nav" target="_blank">
+    <img src="https://vercel.com/button" alt="Deploy with Vercel" />
+  </a>
+</p>
+
 ---
 
 ## 1. Executive Summary & Operational Challenge
